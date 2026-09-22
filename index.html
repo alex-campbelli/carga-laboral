@@ -393,6 +393,7 @@ tr.detail-row td{background:var(--surface-2);padding:14px 18px}
 .section-intro{color:var(--text-2);margin:6px 0 0;font-size:13.5px}
 .instruction{background:var(--primary-50);border:1px solid var(--primary-100);border-radius:10px;padding:14px 16px;font-size:13.5px;color:#0C4452;display:flex;gap:12px}
 .instruction svg{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.instruction p{margin:7px 0 0;line-height:1.5}
 .act-card{border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow);overflow:hidden}
 .act-card+.act-card{margin-top:14px}
 .act-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface-2);border-bottom:1px solid var(--border)}
@@ -2982,8 +2983,8 @@ const Validate = {
     if (!def) E('frequency', 'Seleccione la frecuencia (frecuencia vacía).');
     else if (def.kind === 'perDay' && !(U.num(a.qtyPerDay) > 0)) E('qtyPerDay', 'Indique cuántas veces aproximadamente realiza la actividad al día.');
     else if (def.kind === 'perWeek' && !(U.num(a.qtyPerWeek) > 0)) E('qtyPerWeek', 'Indique cuántas veces aproximadamente realiza la actividad por semana.');
-    if (tu === null) E('timeUsual', 'Indique el tiempo habitual de UNA ejecución, en minutos (tiempo vacío).');
-    else if (tu <= 0) E('timeUsual', 'El tiempo por ejecución debe ser mayor que cero.');
+    if (tu === null) E('timeUsual', 'Indique cuánto tiempo tarda cada vez que realiza la actividad, en minutos (tiempo vacío).');
+    else if (tu <= 0) E('timeUsual', 'El tiempo de cada vez debe ser mayor que cero.');
     if (tmin !== null && tmin < 0) E('timeMin', 'El tiempo mínimo no puede ser negativo.');
     if (tmax !== null && tmax < 0) E('timeMax', 'El tiempo máximo no puede ser negativo.');
     if (Q.on('timeSource')) {
@@ -5926,7 +5927,7 @@ const Access = {
   /** Información de privacidad que acompaña a la declaración (se muestra plegada). */
   PRIVACY_TITLE: 'Información y privacidad',
   DATA_TITLE: 'Protección de datos y uso de la información',
-  PURPOSE: 'La información proporcionada será utilizada exclusivamente para el desarrollo del estudio de carga laboral.',
+  PURPOSE: 'Sus respuestas describen el trabajo real de su cargo; no se trata de calificar su desempeño. El formulario se va guardando solo: si algo lo interrumpe, puede volver a entrar con su cédula y continuar donde quedó.',
   TRACE_TITLE: 'Trazabilidad de la participación',
   privacy() {
     return 'La información suministrada será utilizada exclusivamente para analizar las actividades, tiempos y frecuencia asociados a la labor, con el propósito de obtener resultados objetivos que contribuyan a una adecuada organización y distribución del trabajo. Los datos serán tratados de manera responsable y conforme a la normativa vigente sobre protección de datos personales.';
@@ -6232,7 +6233,7 @@ const FormView = {
         <p class="gate-text">Para comenzar, ingrese su número de cédula.</p>
         <div class="gate-entry">
           <label class="gate-label" for="gateDoc">Número de cédula</label>
-          <form class="gate-form" id="gateForm" autocomplete="off" novalidate><input class="input" id="gateDoc" placeholder="Número de cédula" maxlength="24" inputmode="numeric" enterkeyhint="go" autocomplete="off" value="${preview ? '1000000000' : ''}"><button type="submit" class="btn btn-primary">Continuar →</button></form>
+          <form class="gate-form" id="gateForm" autocomplete="off" novalidate><input class="input" id="gateDoc" placeholder="Ej.: 1094356789" maxlength="24" inputmode="numeric" enterkeyhint="go" autocomplete="off" value="${preview ? '1000000000' : ''}"><button type="submit" class="btn btn-primary">Continuar →</button></form>
           <p class="gate-hint">Solo pueden ingresar los funcionarios convocados a este formulario. Sus datos se cargarán automáticamente.</p>
         </div>
         <button type="button" class="gate-kbd" data-action="kbd">¿Su documento tiene letras?</button>
@@ -6485,8 +6486,10 @@ const FormView = {
   step2() {
     return `<div class="card">${this.sectionHead('2. DESCRIPCIÓN Y MEDICIÓN DE ACTIVIDADES', '')}
       <div class="card-body stack">
-        <div class="instruction">${icon('info')}<div><b>Registre las actividades que realiza habitualmente en su cargo.</b> No agrupe varias actividades diferentes en una sola descripción. Para cada actividad indique su frecuencia y el tiempo aproximado que tarda en realizar <b>una</b> ejecución, en minutos.
-          <div class="small" style="margin-top:6px">✗ Evite: «Realizo informes», «Actividades diarias: 4 jornadas». ✓ Prefiera: «Elaboración del informe mensual de PQRS para la Supersalud — Mensual — 240 minutos».</div></div></div>
+        <div class="instruction">${icon('info')}<div><b>¿Cómo registrar sus actividades?</b>
+          <p>Registre las actividades que realiza habitualmente en su cargo. Para cada actividad indique qué hace, con qué frecuencia la realiza y cuánto tiempo tarda en realizarla una vez.</p>
+          <p><b>Ejemplo:</b> Elaboración del informe mensual de PQRS — Mensual — 240 minutos cada vez.</p>
+          <p><b>Importante:</b> registre cada actividad por separado. No agrupe varias actividades diferentes en una sola descripción.</p></div></div>
         <div id="activities"></div>
         <div class="row" style="justify-content:space-between">
           <button class="btn btn-primary btn-lg" data-action="addAct">${icon('plus')} AGREGAR ACTIVIDAD</button>
@@ -6531,7 +6534,7 @@ const FormView = {
         </fieldset>
 
         <fieldset class="act-block"><legend>Tiempo de ejecución</legend>
-          ${q('¿Cuánto tiempo tarda aproximadamente en realizar UNA ejecución de esta actividad?')}
+          ${q('¿Cuánto tiempo tarda aproximadamente cada vez que realiza esta actividad?')}
           <div class="time-grid ${Q.on('timeRange') ? '' : 'single'}">
             ${!Q.on('timeRange') ? '' : this.fld('Tiempo mínimo', `<div class="input-group"><input class="input" type="number" min="0" step="any" inputmode="decimal" ${af('timeMin')} value="${a.timeMin ?? ''}"><span class="input-addon">min</span></div>`, { hint: 'Opcional', err: 'timeMin' })}
             ${this.fld('Tiempo habitual', `<div class="input-group"><input class="input" type="number" min="0" step="any" inputmode="decimal" ${af('timeUsual')} value="${a.timeUsual ?? ''}"><span class="input-addon">min</span></div>`, { req: true, hint: '<span data-human>Use minutos: 1 hora = 60 min</span>', err: 'timeUsual', cls: 'main' })}
