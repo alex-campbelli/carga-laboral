@@ -1712,7 +1712,7 @@ const Questionnaire = {
     ['flow', 'De quién depende, a quién entrega y medio utilizado', 'deep', 'dependencias entre áreas y posibles cuellos de botella'],
     ['pertinence', 'Si la actividad corresponde a las funciones del cargo', 'deep', 'actividades ajenas al cargo'],
     ['observations', 'Observaciones de cada actividad', 'deep', 'comentarios adicionales por actividad'],
-    ['performanceFactors', 'Factores que afectan el desempeño', 'deep', 'factores de desempeño por dependencia'],
+    ['performanceFactors', 'Factores que afectan el desempeño', 'deep', 'factores de desempeño por área'],
     ['proposals', 'Propuestas de mejora', 'deep', 'propuestas de los funcionarios'],
   ],
   /** Preguntas que siempre se incluyen porque sin ellas no se puede calcular la carga. */
@@ -1966,7 +1966,7 @@ const Store = {
     if (closedForms.size) db.assignments.forEach(a => {
       if (!closedForms.has(a.formId) || a.snapshot) return;
       const e = db.employees.find(x => x.id === a.employeeId), d = e ? db.departments.find(x => x.id === e.departmentId) : null;
-      if (e) a.snapshot = Domain.snapshotOf(e, d ? d.name : 'Sin dependencia');
+      if (e) a.snapshot = Domain.snapshotOf(e, d ? d.name : 'Sin área');
     });
     db.meta.schemaVersion = SCHEMA_VERSION;
     return db;
@@ -2098,7 +2098,7 @@ const Cloud = {
   channel: null,
   ORDER: ['studies', 'departments', 'employees', 'forms', 'assignments', 'responses', 'activities', 'validations', 'events'],
   MODEL: { studies: 'study', departments: 'department', employees: 'employee', forms: 'form', assignments: 'assignment', responses: 'response', activities: 'activity', validations: 'validation', events: 'event' },
-  LABEL: { studies: 'contrato', departments: 'dependencia', employees: 'funcionario', forms: 'formulario', assignments: 'participante', responses: 'respuesta', activities: 'actividad', validations: 'revisión', events: 'registro de acceso' },
+  LABEL: { studies: 'contrato', departments: 'área', employees: 'funcionario', forms: 'formulario', assignments: 'participante', responses: 'respuesta', activities: 'actividad', validations: 'revisión', events: 'registro de acceso' },
   COLUMNS: {
     studies: ['id', 'name', 'institution_name', 'period', 'start_date', 'end_date', 'responsible_name', 'responsible_role', 'responsible_id_type', 'responsible_id_number', 'responsible_id_place', 'responsible_birth_date', 'responsible_specialty', 'responsible_license', 'responsible_email', 'responsible_phone', 'responsible_city', 'logo_data_url', 'signature_data_url', 'consent_text', 'notes', 'settings', 'created_at', 'updated_at'],
     departments: ['id', 'study_id', 'name', 'code', 'is_demo', 'created_at', 'updated_at'],
@@ -3008,7 +3008,8 @@ const Validate = {
     const errors = [];
     const req = (field, label) => errors.push({ step: 1, field, msg: `Complete el campo «${label}».` });
     if (!emp.fullName.trim()) req('employee.fullName', 'Nombre completo');
-    if (!emp.departmentId) req('employee.departmentId', 'Dependencia');
+    // El área solo se exige cuando el contrato tiene áreas registradas
+    if (!emp.departmentId && Store.inStudy('departments', emp.studyId).length) req('employee.departmentId', 'Área');
     if (!emp.position.trim()) req('employee.position', 'Cargo');
     this.ID_FIELDS.forEach(([k, label]) => { if (s.requiredFields[k] && !String(emp[k] || '').trim()) req('employee.' + k, label); });
     return errors;
@@ -3095,7 +3096,7 @@ const Validate = {
    ===================================================================== */
 const Domain = {
   departments(sid) { return Store.inStudy('departments', sid).sort((a, b) => a.name.localeCompare(b.name, 'es')); },
-  deptName(id) { const d = id ? Store.get('departments', id) : null; return d ? d.name : 'Sin dependencia'; },
+  deptName(id) { const d = id ? Store.get('departments', id) : null; return d ? d.name : 'Sin área'; },
   responseOf(employeeId, formId = Store.fid()) { return formId ? Store.db.responses.find(r => r.employeeId === employeeId && r.formId === formId) || null : null; },
   activitiesOf(responseId) { return Store.db.activities.filter(a => a.responseId === responseId).sort((a, b) => a.order - b.order); },
   validationsOf(responseId) { return Store.db.validations.filter(v => v.responseId === responseId).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)); },
@@ -3137,7 +3138,7 @@ const Domain = {
       // El registro de accesos se conserva como evidencia
     });
   },
-  /** Datos laborales que se fijan al cerrar un formulario: así una medición cerrada no cambia si después cambian el cargo o la dependencia. */
+  /** Datos laborales que se fijan al cerrar un formulario: así una medición cerrada no cambia si después cambian el cargo o el área. */
   LABOR: ['departmentId', 'position', 'contractType', 'supervisor', 'seniority', 'education'],
   snapshotOf(e, deptName) { return { ...Object.fromEntries(this.LABOR.map(k => [k, e[k] ?? ''])), deptName, at: U.now() }; },
   freeze(formId) {
@@ -3845,7 +3846,7 @@ const App = {
   back(fallback = '#/dashboard') { if (this.prevHash && this.prevHash !== this.currentHash) history.back(); else this.go(fallback); },
   /** Un formulario tiene una sola vista: al abrirlo se activa y se muestra en Respuestas. */
   formRedirect(hash) {
-    // «Abrir» un formulario lleva a Respuestas; «Editar», al área Formulario (ambas con ese formulario activo)
+    // «Abrir» un formulario lleva a Respuestas; «Editar», a la sección Formulario (ambas con ese formulario activo)
     const m = /^#\/forms\/([\w-]+)(\/edit)?$/.exec(hash);
     if (!m || m[1] === 'new') return hash;
     const f = Store.get('forms', m[1]);
@@ -3930,7 +3931,7 @@ const Views = {
           <div><div class="eyebrow">Primeros pasos</div><h2 style="font-size:22px;margin-bottom:8px">Inicie el estudio de carga laboral</h2>
           <p class="page-sub">Registre la base de datos de funcionarios del contrato, cree un formulario para la medición solicitada y elija quiénes participan. El sistema calcula la frecuencia mensual, los minutos mensuales, el porcentaje de carga y la clasificación.</p>
           <div class="row" style="margin-top:18px"><button class="btn btn-primary" data-action="demo">${icon('layers')} Generar datos de demostración</button><a class="btn" href="#/employees">${icon('users')} Funcionarios</a><a class="btn" href="#/forms/new">${icon('form')} Nuevo formulario</a><a class="btn btn-ghost" href="#/settings">${icon('settings')} Configuración</a></div></div>
-          <div class="steps-mini"><div>Configurar el contrato y sus dependencias</div><div>Registrar o importar la base de datos de funcionarios</div><div>Crear el formulario de medición y elegir participantes</div><div>Diligenciar actividades con tiempos y frecuencias</div><div>Revisar y validar respuestas</div><div>Analizar resultados y generar el informe técnico</div></div>
+          <div class="steps-mini"><div>Configurar el contrato y sus áreas</div><div>Registrar o importar la base de datos de funcionarios</div><div>Crear el formulario de medición y elegir participantes</div><div>Diligenciar actividades con tiempos y frecuencias</div><div>Revisar y validar respuestas</div><div>Analizar resultados y generar el informe técnico</div></div>
         </div>`;
         UI.bind(view, { click: { demo: () => Demo.generate() } });
         return;
@@ -4086,7 +4087,7 @@ const Views = {
     }).filter(x => x.pr < 9).sort((a, b) => a.pr - b.pr || b.ref.loadPct - a.ref.loadPct);
     const shown = candidates.slice(0, 8);
     const attentionCard = `<div class="card"><div class="card-head"><div><div class="card-title">Funcionarios que requieren atención</div><div class="card-sub">Prioridad: sobrecargas más altas, datos atípicos, respuestas con alertas y pendientes de validación</div></div><a class="btn btn-sm btn-primary" href="#/review">${icon('check')} Ver respuestas</a></div>
-      ${shown.length ? `<div class="table-wrap"><table class="table table-compact attention-table"><thead><tr><th>Funcionario</th><th>Cargo</th><th>Dependencia</th><th>Carga</th><th>Clasificación</th><th>Estado</th><th>Motivo</th><th></th></tr></thead><tbody>
+      ${shown.length ? `<div class="table-wrap"><table class="table table-compact attention-table"><thead><tr><th>Funcionario</th><th>Cargo</th><th>Área</th><th>Carga</th><th>Clasificación</th><th>Estado</th><th>Motivo</th><th></th></tr></thead><tbody>
         ${shown.map(x => `<tr class="clickable" data-action="openResp" data-id="${x.r.employee.id}">
           <td><div class="t-name">${U.esc(x.r.employee.fullName)}${UI.demoBadge(x.r.employee)}</div></td>
           <td class="small">${U.esc(x.r.employee.position || '—')}</td>
@@ -4185,15 +4186,15 @@ const Views = {
       <div class="card">
         <div class="toolbar">
           <div class="field search"><label for="empQ">Buscar por nombre, documento, correo o cargo</label><input class="input" id="empQ" data-input="f" data-k="q" value="${U.esc(f.q)}" placeholder="Escriba para buscar…"></div>
-          <div class="field"><label>Dependencia</label><select class="select" data-change="f" data-k="dept">${UI.options(depts.map(d => [d.id, d.name]), f.dept, 'Todas')}</select></div>
+          <div class="field"><label>Área</label><select class="select" data-change="f" data-k="dept">${UI.options(depts.map(d => [d.id, d.name]), f.dept, 'Todas')}</select></div>
           <div class="field"><label>Cargo</label><select class="select" data-change="f" data-k="position">${UI.options(positions().map(p => [p, p]), f.position, 'Todos')}</select></div>
           <div class="field"><label>Estado</label><select class="select" data-change="f" data-k="status">${UI.options(Object.entries(CATALOG.employeeStatus).map(([k, v]) => [k, v.label]), f.status, 'Todos')}</select></div>
-          <div class="field"><label>Ordenar por</label><select class="select" data-change="f" data-k="sort">${UI.options([['name', 'Nombre'], ['dept', 'Dependencia'], ['position', 'Cargo'], ['recent', 'Registro más reciente']], f.sort, null)}</select></div>
+          <div class="field"><label>Ordenar por</label><select class="select" data-change="f" data-k="sort">${UI.options([['name', 'Nombre'], ['dept', 'Área'], ['position', 'Cargo'], ['recent', 'Registro más reciente']], f.sort, null)}</select></div>
         </div>
         <div class="card-head" style="border-bottom:1px solid var(--border)"><div class="row small"><span class="muted">Mostrando <b id="empCount"></b></span><span id="empStats" class="row" style="gap:6px"></span></div><button class="btn btn-sm btn-ghost" data-action="clear">Limpiar filtros</button></div>
         <div class="bulk-bar" id="bulkBar" hidden></div>
         <div class="table-wrap"><table class="table">
-          <thead><tr><th class="check-cell"><input type="checkbox" id="checkAll" data-change="checkAll" aria-label="Seleccionar todos los visibles"></th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Dependencia</th><th>Vinculación</th><th>Estado</th><th></th></tr></thead>
+          <thead><tr><th class="check-cell"><input type="checkbox" id="checkAll" data-change="checkAll" aria-label="Seleccionar todos los visibles"></th><th>Nombre</th><th>Documento</th><th>Cargo</th><th>Área</th><th>Vinculación</th><th>Estado</th><th></th></tr></thead>
           <tbody id="empBody"></tbody></table></div>
       </div>`;
     UI.bind(view, {
@@ -4404,11 +4405,11 @@ const Views = {
     const tabs = [['', 'Todas', items.length, 'neutral'], ['pending', RS.pending.tab, n('pending'), 'info'], ['observed', RS.observed.tab, n('observed'), 'warn'], ['correction', RS.correction.tab, n('correction'), 'bad'], ['validated', RS.validated.tab, n('validated'), 'ok'],
       ['unsent', 'Sin enviar', unsent.length, 'muted', unsentSub]];
     const depts = U.uniq(allRows.map(r => r.employee.departmentId)).map(id => [id, Domain.deptName(id)]).sort((a, b) => a[1].localeCompare(b[1], 'es'));
-    const cols = [['name', 'Funcionario'], ['position', 'Cargo / dependencia'], ['date', 'Fecha de envío'], ['activities', 'Actividades', true], ['minutes', 'Min/mes', true, 'Minutos mensuales'], ['load', 'Carga calculada'], ['status', 'Estado']];
+    const cols = [['name', 'Funcionario'], ['position', 'Cargo / área'], ['date', 'Fecha de envío'], ['activities', 'Actividades', true], ['minutes', 'Min/mes', true, 'Minutos mensuales'], ['load', 'Carga calculada'], ['status', 'Estado']];
     const unsentSortable = ['name', 'position', 'status'];
     const tabIcons = { '': 'report', pending: 'clock', observed: 'alertCircle', correction: 'alert', validated: 'checkCircle', unsent: 'report' };
     const sortLabel = {
-      name: ['Nombre (A–Z)', 'Nombre (Z–A)'], position: ['Cargo / dependencia (A–Z)', 'Cargo / dependencia (Z–A)'],
+      name: ['Nombre (A–Z)', 'Nombre (Z–A)'], position: ['Cargo / área (A–Z)', 'Cargo / área (Z–A)'],
       date: ['Fecha de envío (más antigua)', 'Fecha de envío (más reciente)'], activities: ['Actividades (menos a más)', 'Actividades (más a menos)'],
       minutes: ['Minutos mensuales (menor a mayor)', 'Minutos mensuales (mayor a menor)'], load: ['Carga calculada (menor a mayor)', 'Carga calculada (mayor a menor)'],
       status: ['Estado (ascendente)', 'Estado (descendente)'],
@@ -4420,7 +4421,7 @@ const Views = {
       <div class="card rv-filters">
         <div class="rv-row">
           <div class="field rv-search"><label for="rvQ">Buscar funcionario</label><div class="input-icon">${icon('search')}<input class="input" id="rvQ" data-input="f" data-k="q" value="${U.esc(f.q)}" placeholder="Nombre, cédula o cargo"></div></div>
-          <div class="field"><label for="rvDept">Dependencia</label><select class="select" id="rvDept" data-change="f" data-k="dept">${UI.options(depts, f.dept, 'Todas')}</select></div>
+          <div class="field"><label for="rvDept">Área</label><select class="select" id="rvDept" data-change="f" data-k="dept">${UI.options(depts, f.dept, 'Todas')}</select></div>
           <div class="field"><label for="rvStatus">Estado</label><select class="select" id="rvStatus" data-change="f" data-k="status">${UI.options([...Object.entries(RS).map(([k, v]) => [k, v.tab]), ['unsent', 'Sin enviar']], f.status, 'Todas')}</select></div>
           <div class="field rv-cls" data-resp><label for="rvCls">Clasificación de carga</label><select class="select" id="rvCls" data-change="f" data-k="cls">${UI.options(Object.entries(CATALOG.classes).map(([k, v]) => [k, v.label]), f.cls, 'Todas')}</select></div>
           <button type="button" class="btn btn-more" data-resp data-action="more" aria-controls="rvMoreRow" aria-expanded="${f.more ? 'true' : 'false'}">${icon('filter')} Más filtros<span class="more-count" id="rvMoreCount" hidden></span>${icon('chevron').replace('<svg ', '<svg class="chev" ')}</button>
@@ -4458,7 +4459,7 @@ const Views = {
     };
     const dash = '<span class="muted">—</span>';
     const nameCell = e => `<td data-label="Funcionario" class="cell-name"><div class="t-name clamp1" title="${U.esc(e.fullName)}">${U.esc(e.fullName)}${UI.demoBadge(e)}</div><div class="t-sub clamp1">${String(e.documentId || '').trim() ? U.esc(e.documentId) : '<span class="warn-text" title="Sin cédula no podrá ingresar al formulario">Sin cédula</span>'}</div></td>`;
-    const posCell = r => `<td data-label="Cargo / dependencia"><div class="clamp1" title="${U.esc(r.employee.position || '')}">${U.esc(r.employee.position || '—')}</div><div class="t-sub clamp1" title="${U.esc(r.deptName)}">${U.esc(r.deptName)}</div></td>`;
+    const posCell = r => `<td data-label="Cargo / área"><div class="clamp1" title="${U.esc(r.employee.position || '')}">${U.esc(r.employee.position || '—')}</div><div class="t-sub clamp1" title="${U.esc(r.deptName)}">${U.esc(r.deptName)}</div></td>`;
     const iconBtn = (act, id, ic, label, cls = '') => `<button type="button" class="icon-btn ${cls}" data-action="${act}" data-id="${id}" title="${label}" aria-label="${label}">${icon(ic)}</button>`;
     const renderUnsent = () => {
       const q = U.normalize(f.q);
@@ -4486,7 +4487,7 @@ const Views = {
           <td data-label="Estado">${UI.pill(sd.label, sd.tone, tip)}</td>
           <td data-label="Acción" data-stop><div class="row-acts"><a class="btn btn-sm btn-soft" href="#/form/${form.id}/${e.id}" title="Diligenciar en nombre del funcionario">${draft ? 'Continuar' : 'Diligenciar'}</a>${iconBtn('trace', e.id, 'eye', 'Ver trazabilidad')}${closed ? '' : iconBtn('link', e.id, 'link', 'Copiar invitación con el enlace')}${closed ? '' : iconBtn('remove', e.id, 'x', 'Quitar del formulario', 'danger')}</div></td>
         </tr>`;
-      }).join('') : `<tr><td colspan="8">${unsent.length ? this.softEmpty('🔎', 'Ningún participante coincide con la búsqueda', 'Ajuste la búsqueda o la dependencia.', '<button class="btn btn-sm" data-action="clear">Limpiar filtros</button>') : this.softEmpty('✅', 'Todos los participantes enviaron el formulario', 'No hay participantes sin ingresar ni en borrador.')}</td></tr>`;
+      }).join('') : `<tr><td colspan="8">${unsent.length ? this.softEmpty('🔎', 'Ningún participante coincide con la búsqueda', 'Ajuste la búsqueda o el área.', '<button class="btn btn-sm" data-action="clear">Limpiar filtros</button>') : this.softEmpty('✅', 'Todos los participantes enviaron el formulario', 'No hay participantes sin ingresar ni en borrador.')}</td></tr>`;
     };
     const render = () => {
       const isUnsent = f.status === 'unsent';
@@ -4620,7 +4621,7 @@ const Views = {
       ${qBlocks.join('\n      ') || `<p class="small muted" style="margin:0">El cuestionario de este formulario (nivel ${U.esc(QQ.label.toLowerCase())}) no incluyó preguntas cualitativas.</p>`}
     </div></div>`;
     const dataCard = `<div class="card"><div class="card-head"><div class="card-title">Datos del funcionario</div></div><div class="card-body"><dl class="dl">
-      <dt>Documento</dt><dd>${U.esc(emp.documentId || '—')}</dd><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd><dt>Dependencia</dt><dd>${U.esc(row.deptName)}</dd>
+      <dt>Documento</dt><dd>${U.esc(emp.documentId || '—')}</dd><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd><dt>Área</dt><dd>${U.esc(row.deptName)}</dd>
       <dt>Tipo de vinculación</dt><dd>${U.esc(CATALOG.label('contractTypes', emp.contractType) || '—')}</dd><dt>Jefe inmediato</dt><dd>${U.esc(emp.supervisor || '—')}</dd>
       <dt>Antigüedad</dt><dd>${U.esc(CATALOG.label('seniority', emp.seniority) || '—')}</dd><dt>Formación académica</dt><dd>${U.esc(CATALOG.label('education', emp.education) || '—')}</dd>
       <dt>Declaración</dt><dd>${r.declarationAccepted ? 'Confirmó la información suministrada' : '—'}</dd>
@@ -4796,7 +4797,7 @@ const Views = {
         <div class="page-actions"><button class="btn" data-action="editEmp">${icon('edit')} Editar datos</button><button class="btn btn-danger" data-action="del" title="Eliminar funcionario">${icon('trash')} Eliminar</button></div>
       </div></div><div class="sp"></div>
       <div class="card"><div class="card-head"><div class="card-title">Datos personales y laborales</div></div><div class="card-body"><dl class="dl">
-        <dt>Documento</dt><dd>${U.esc(emp.documentId || '—')}</dd><dt>Dependencia</dt><dd>${U.esc(dept)}</dd><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd>
+        <dt>Documento</dt><dd>${U.esc(emp.documentId || '—')}</dd><dt>Área</dt><dd>${U.esc(dept)}</dd><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd>
         <dt>Tipo de vinculación</dt><dd>${U.esc(CATALOG.label('contractTypes', emp.contractType) || '—')}</dd><dt>Jefe inmediato</dt><dd>${U.esc(emp.supervisor || '—')}</dd>
         <dt>Antigüedad</dt><dd>${U.esc(CATALOG.label('seniority', emp.seniority) || '—')}</dd><dt>Formación académica</dt><dd>${U.esc(CATALOG.label('education', emp.education) || '—')}</dd>
         <dt>Correo</dt><dd>${U.esc(emp.email || '—')}</dd><dt>Teléfono</dt><dd>${U.esc(emp.phone || '—')}</dd><dt>Estado</dt><dd>${U.esc(estado.label)}</dd>
@@ -4874,7 +4875,7 @@ const Views = {
         </div>
         <div class="card-body stack">
           <p style="margin:0;text-align:center;color:var(--text-2)">Gracias, <b>${U.esc(emp.fullName)}</b>. Su información quedó registrada y será revisada por el equipo responsable del estudio de carga laboral.</p>
-          <dl class="dl" style="max-width:520px;margin:0 auto"><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd><dt>Dependencia</dt><dd>${U.esc(row.deptName)}</dd><dt>Actividades registradas</dt><dd class="num">${row.activities.length}</dd><dt>Fecha de envío</dt><dd>${U.fmtDate(row.response.submittedAt, true)}</dd></dl>
+          <dl class="dl" style="max-width:520px;margin:0 auto"><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd><dt>Área</dt><dd>${U.esc(row.deptName)}</dd><dt>Actividades registradas</dt><dd class="num">${row.activities.length}</dd><dt>Fecha de envío</dt><dd>${U.fmtDate(row.response.submittedAt, true)}</dd></dl>
           ${kiosk ? '<p class="small muted" style="margin:0;text-align:center">Ya puede cerrar esta ventana, o pulse «Terminar» para que otra persona ingrese con su cédula. Esta pantalla vuelve sola al ingreso en un minuto.</p>' : ''}
           <div class="row" style="justify-content:center">
             ${kiosk ? `<a class="btn btn-primary" href="#/ingreso/${form.id}" data-replace>${icon('logout')} Terminar</a>` : `<a class="btn btn-primary" href="#/review/${emp.id}">${icon('check')} Revisar y validar</a><a class="btn" href="#/forms/${form.id}">Volver a participantes</a>`}
@@ -4927,7 +4928,7 @@ const EmployeeModal = {
     const body = `<div class="form-grid">
       <div class="field full"><label for="emName">Nombre completo<span class="req">*</span></label><input class="input" id="emName" name="fullName" value="${U.esc(e.fullName)}"></div>
       <div class="field"><label for="emDoc">Documento de identificación${req('documentId')}</label><input class="input" id="emDoc" name="documentId" value="${U.esc(e.documentId)}"></div>
-      <div class="field"><label for="emDept">Dependencia<span class="req">*</span></label><div class="row" style="flex-wrap:nowrap"><select class="select" id="emDept" name="departmentId">${UI.options(Domain.departments().map(d => [d.id, d.name]), e.departmentId)}</select><button type="button" class="btn" data-newdept title="Nueva dependencia">${icon('plus')}</button></div></div>
+      <div class="field"><label for="emDept">Área</label><div class="row" style="flex-wrap:nowrap"><select class="select" id="emDept" name="departmentId">${UI.options(Domain.departments().map(d => [d.id, d.name]), e.departmentId)}</select><button type="button" class="btn" data-newdept title="Nueva área">${icon('plus')}</button></div></div>
       <div class="field"><label for="emPos">Cargo<span class="req">*</span></label><input class="input" id="emPos" name="position" list="positionsList" value="${U.esc(e.position)}"><datalist id="positionsList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist></div>
       <div class="field"><label for="emCt">Tipo de vinculación${req('contractType')}</label><select class="select" id="emCt" name="contractType">${UI.options(CATALOG.contractTypes, e.contractType)}</select></div>
       <div class="field"><label for="emSup">Jefe inmediato${req('supervisor')}</label><input class="input" id="emSup" name="supervisor" value="${U.esc(e.supervisor)}"></div>
@@ -4943,7 +4944,7 @@ const EmployeeModal = {
       title: emp ? 'Editar funcionario' : 'Registrar funcionario', body, size: 'lg',
       onMount: back => {
         back.querySelector('[data-newdept]').onclick = () => {
-          const name = window.prompt('Nombre de la nueva dependencia:');
+          const name = window.prompt('Nombre de la nueva área:');
           if (!name || !name.trim()) return;
           const d = DeptService.create(name);
           back.querySelector('[name=departmentId]').innerHTML = UI.options(Domain.departments().map(x => [x.id, x.name]), d.id);
@@ -4978,7 +4979,7 @@ const EmployeeImport = {
   COLUMNS: [
     ['fullName', 'Nombre completo', ['nombre completo', 'nombre', 'nombres y apellidos', 'funcionario', 'empleado', 'trabajador']],
     ['documentId', 'Documento', ['documento', 'documento de identificacion', 'numero de documento', 'cedula', 'identificacion', 'cc']],
-    ['department', 'Dependencia', ['dependencia', 'area', 'servicio', 'unidad', 'departamento']],
+    ['department', 'Área', ['area', 'área', 'servicio', 'unidad', 'departamento']],
     ['position', 'Cargo', ['cargo', 'puesto']],
     ['contractType', 'Tipo de vinculación', ['tipo de vinculacion', 'vinculacion', 'tipo de contrato']],
     ['supervisor', 'Jefe inmediato', ['jefe inmediato', 'jefe', 'supervisor']],
@@ -5036,8 +5037,8 @@ const EmployeeImport = {
     UI.modal({
       title: 'Cargue masivo de funcionarios', size: 'lg',
       body: `<div class="upload-steps">
-        <div class="upload-step"><span class="us-n">1</span><div><b>Descargue la plantilla de Excel</b><div class="small muted">Hoja «Funcionarios» con las columnas del cargue, listas desplegables (vinculación, antigüedad, formación, estado y dependencias registradas) y una hoja de instrucciones.</div><button type="button" class="btn btn-sm" data-dl>${icon('download')} Descargar plantilla (.xlsx)</button></div></div>
-        <div class="upload-step"><span class="us-n">2</span><div><b>Diligencie un funcionario por fila</b><div class="small muted">Obligatorio: <b>Nombre completo</b>. Recomendado: documento, dependencia y cargo. No cambie los títulos de las columnas. Borre la fila de ejemplo.</div><div class="small" style="margin-top:6px;color:var(--text-2)">Columnas: ${fields.map(U.esc).join(' · ')}</div></div></div>
+        <div class="upload-step"><span class="us-n">1</span><div><b>Descargue la plantilla de Excel</b><div class="small muted">Hoja «Funcionarios» con las columnas del cargue, listas desplegables (vinculación, antigüedad, formación, estado y áreas registradas) y una hoja de instrucciones.</div><button type="button" class="btn btn-sm" data-dl>${icon('download')} Descargar plantilla (.xlsx)</button></div></div>
+        <div class="upload-step"><span class="us-n">2</span><div><b>Diligencie un funcionario por fila</b><div class="small muted">Obligatorio: <b>Nombre completo</b>. Recomendado: documento, área y cargo. No cambie los títulos de las columnas. Borre la fila de ejemplo.</div><div class="small" style="margin-top:6px;color:var(--text-2)">Columnas: ${fields.map(U.esc).join(' · ')}</div></div></div>
         <div class="upload-step"><span class="us-n">3</span><div><b>Cargue el archivo diligenciado</b><div class="small muted">Antes de guardar verá una vista previa con los funcionarios nuevos, los que se actualizarán (mismo documento) y las filas con errores.</div></div></div>
       </div>`,
       onMount: back => { back.querySelector('[data-dl]').onclick = () => Exporter.employeesWorkbook(true); },
@@ -5073,7 +5074,7 @@ const EmployeeImport = {
         <div class="class-tile over"><span class="small">Con errores</span><span class="n">${nErr}</span></div>
       </div>
       <p class="small"><b>Columnas reconocidas:</b> ${recognized.map(U.esc).join(', ')}${res.unknown.length ? `<br><span class="muted"><b>No reconocidas (se ignoran):</b> ${res.unknown.map(U.esc).join(', ')}</span>` : ''}</p>
-      <div class="table-wrap" style="max-height:38vh;overflow:auto;border:1px solid var(--border);border-radius:8px"><table class="table table-compact"><thead><tr><th>Fila</th><th>Nombre</th><th>Documento</th><th>Dependencia</th><th>Cargo</th><th>Resultado</th></tr></thead><tbody>
+      <div class="table-wrap" style="max-height:38vh;overflow:auto;border:1px solid var(--border);border-radius:8px"><table class="table table-compact"><thead><tr><th>Fila</th><th>Nombre</th><th>Documento</th><th>Área</th><th>Cargo</th><th>Resultado</th></tr></thead><tbody>
         ${res.items.slice(0, 200).map(i => `<tr><td class="muted">${i.line}</td><td>${U.esc(i.data.fullName || '—')}</td><td>${U.esc(i.data.documentId || '—')}</td><td>${U.esc(i.data.department || '—')}</td><td>${U.esc(i.data.position || '—')}</td><td>${i.error ? UI.badge(i.error, 'bad') : i.match ? UI.badge('Existente', 'info') : UI.badge('Nuevo', 'ok')}</td></tr>`).join('')}
       </tbody></table></div>
       <div class="stack" style="gap:8px;margin-top:14px">
@@ -5113,11 +5114,11 @@ const EmployeeImport = {
   },
 };
 
-/** Selector de participantes con búsqueda, filtro por dependencia y selección masiva. */
+/** Selector de participantes con búsqueda, filtro por área y selección masiva. */
 const ParticipantPicker = {
   html(depts) {
     return `<div class="picker">
-      <div class="row" style="flex-wrap:nowrap;gap:8px;margin-bottom:8px"><input class="input input-sm" data-pk="q" placeholder="Buscar por nombre, documento o cargo" aria-label="Buscar funcionarios"><select class="select input-sm" data-pk="dept" style="max-width:220px" aria-label="Filtrar por dependencia">${UI.options(depts.map(d => [d.id, d.name]), '', 'Todas las dependencias')}</select></div>
+      <div class="row" style="flex-wrap:nowrap;gap:8px;margin-bottom:8px"><input class="input input-sm" data-pk="q" placeholder="Buscar por nombre, documento o cargo" aria-label="Buscar funcionarios"><select class="select input-sm" data-pk="dept" style="max-width:220px" aria-label="Filtrar por área">${UI.options(depts.map(d => [d.id, d.name]), '', 'Todas las áreas')}</select></div>
       <div class="row" style="justify-content:space-between;margin-bottom:6px"><label class="check small"><input type="checkbox" data-pk="all"><span>Seleccionar todos los visibles</span></label><span class="small muted" data-pk="count"></span></div>
       <div class="picker-list" data-pk="list"></div>
     </div>`;
@@ -5215,7 +5216,7 @@ const FormsView = {
     if (tab === 'vista' || tab === 'apariencia') { this.areaAppearance(view, form); return; }
     this.edit(view, form.id, true);
   },
-  /** Guardado automático del área Formulario: sin botones de guardar ni avisos al cambiar de pestaña. */
+  /** Guardado automático de la sección Formulario: sin botones de guardar ni avisos al cambiar de pestaña. */
   autosaver(view, saveFn) {
     let timer = null;
     const show = (cls, msg) => { const e = $('#autosaveState', view); if (e) { e.className = 'autosave ' + cls; e.textContent = msg; } };
@@ -5354,7 +5355,7 @@ const FormsView = {
             <div class="field"><label for="fStart">Fecha de inicio</label><input class="input" id="fStart" type="date" value="${U.esc(f.startDate)}"></div>
             <div class="field"><label for="fEnd">Fecha de cierre</label><input class="input" id="fEnd" type="date" value="${U.esc(f.endDate)}"></div>
             <div class="field span2"><label for="fBy">Solicitado por</label><input class="input" id="fBy" value="${U.esc(f.requestedBy)}" placeholder="Ej.: Gerencia, Subgerencia administrativa"></div>
-            <div class="field full"><label for="fReq">Descripción de la solicitud</label><textarea class="textarea" id="fReq" rows="2" placeholder="Objeto de la medición, alcance solicitado, dependencias o cargos priorizados…">${U.esc(f.request)}</textarea></div>
+            <div class="field full"><label for="fReq">Descripción de la solicitud</label><textarea class="textarea" id="fReq" rows="2" placeholder="Objeto de la medición, alcance solicitado, áreas o cargos priorizados…">${U.esc(f.request)}</textarea></div>
           </div></div></div>
           ${existing ? '' : `<div class="card"><div class="card-head"><div><div class="card-title">Participantes</div><div class="card-sub">Funcionarios de la base de datos que diligenciarán este formulario</div></div></div><div class="card-body stack">
             <div class="choice-group" role="radiogroup" aria-label="Participantes">
@@ -5471,7 +5472,7 @@ const FormsView = {
     const assigned = Domain.participantIds(form.id);
     const candidates = Store.inStudy('employees').filter(e => !assigned.has(e.id)).sort((a, b) => (a.status === b.status ? a.fullName.localeCompare(b.fullName, 'es') : a.status === 'active' ? -1 : 1));
     if (!candidates.length) {
-      UI.modal({ title: 'Agregar participantes', body: `<p style="margin:0">${Store.inStudy('employees').length ? 'Todos los funcionarios de la base de datos ya participan en este formulario.' : 'La base de datos de funcionarios está vacía. Registre funcionarios o cárguelos desde el área Funcionarios.'}</p>`, actions: [{ label: 'Registrar funcionario', value: 'new' }, { label: 'Ir a Funcionarios', cls: 'btn-primary', value: 'db' }] })
+      UI.modal({ title: 'Agregar participantes', body: `<p style="margin:0">${Store.inStudy('employees').length ? 'Todos los funcionarios de la base de datos ya participan en este formulario.' : 'La base de datos de funcionarios está vacía. Registre funcionarios o cárguelos desde la sección Funcionarios.'}</p>`, actions: [{ label: 'Registrar funcionario', value: 'new' }, { label: 'Ir a Funcionarios', cls: 'btn-primary', value: 'db' }] })
         .then(v => { if (v === 'new') EmployeeModal.open(null, after, { assignTo: form.id }); if (v === 'db') App.go('#/employees'); });
       return;
     }
@@ -6019,7 +6020,7 @@ const Access = {
 const FormView = {
   st: null,
   root: null,
-  /** La vista previa del área Formulario empieza por el ingreso con cédula. */
+  /** La vista previa de la sección Formulario empieza por el ingreso con cédula. */
   _previewIn: false,
   /** Apariencia temporal para la vista previa en tiempo real (editor de apariencia). */
   themeOverride: null,
@@ -6359,18 +6360,21 @@ const FormView = {
     const saved = Store.get('employees', e.id);
     const lockDoc = !!String((saved || (st.preview ? e : {})).documentId || '').trim();
     const lockName = st.kiosk && !!String(e.fullName || '').trim();
+    // Lo que ya está registrado en la base de funcionarios no lo edita el funcionario: solo completa lo que falta
+    const base = saved || (st.preview ? e : null);
+    const lock = k => st.kiosk && !!String((base && base[k]) || '').trim();
     const ro = v => `<input class="input" value="${U.esc(v)}" readonly aria-readonly="true">`;
-    const intro = st.kiosk ? 'Sus datos se cargaron a partir de su cédula. Verifíquelos y complete los que falten; los campos marcados con * son obligatorios.' : 'Registre sus datos laborales. Los campos marcados con * son obligatorios.';
+    const intro = st.kiosk ? 'Sus datos se cargaron a partir de su cédula. Los que ya están registrados no se pueden modificar; complete los que falten. Los campos marcados con * son obligatorios. Si algún dato está errado, comuníquese con el responsable del estudio.' : 'Registre sus datos laborales. Los campos marcados con * son obligatorios.';
     return `<div class="card">${this.sectionHead('1. IDENTIFICACIÓN DEL FUNCIONARIO', intro)}
       <div class="card-body"><div class="form-grid">
         ${this.fld('Número de cédula', lockDoc ? ro(e.documentId) : `<input class="input" data-bind="employee.documentId" value="${U.esc(e.documentId)}" autocomplete="off">`, { ...opt('documentId'), hint: lockDoc ? (st.kiosk ? 'Verificada al ingresar.' : 'Tomada de la base de funcionarios.') : st.isNew ? 'Escríbala primero: si el funcionario ya está registrado se cargan sus datos.' : '' })}
         ${this.fld('Nombre completo', lockName ? ro(e.fullName) : `<input class="input" data-bind="employee.fullName" value="${U.esc(e.fullName)}" autocomplete="off">`, { req: true, err: 'employee.fullName', hint: lockName ? 'Si su nombre o su cédula tienen un error, comuníquese con el responsable del estudio.' : '' })}
-        ${this.fld('Dependencia', `<select class="select" data-bind="employee.departmentId" id="deptSelect">${UI.options(depts.map(d => [d.id, d.name]), e.departmentId)}${this.st.remote ? '' : '<option value="__new__">+ Crear nueva dependencia…</option>'}</select>`, { req: true, err: 'employee.departmentId' })}
-        ${this.fld('Cargo', `<input class="input" data-bind="employee.position" value="${U.esc(e.position)}" list="posList"><datalist id="posList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist>`, { req: true, err: 'employee.position' })}
-        ${this.fld('Tipo de vinculación', `<select class="select" data-bind="employee.contractType">${UI.options(CATALOG.contractTypes, e.contractType)}</select>`, opt('contractType'))}
-        ${this.fld('Jefe inmediato', `<input class="input" data-bind="employee.supervisor" value="${U.esc(e.supervisor)}">`, opt('supervisor'))}
-        ${this.fld('Antigüedad en la entidad', `<select class="select" data-bind="employee.seniority">${UI.options(CATALOG.seniority, e.seniority)}</select>`, opt('seniority'))}
-        ${this.fld('Formación académica', `<select class="select" data-bind="employee.education">${UI.options(CATALOG.education, e.education)}</select>`, opt('education'))}
+        ${lock('departmentId') ? this.fld('Área', ro(Domain.deptName(e.departmentId)), { req: true }) : depts.length || !this.st.remote ? this.fld('Área', `<select class="select" data-bind="employee.departmentId" id="deptSelect">${UI.options(depts.map(d => [d.id, d.name]), e.departmentId)}${this.st.remote ? '' : '<option value="__new__">+ Crear nueva área…</option>'}</select>`, { req: !!depts.length, err: 'employee.departmentId', hint: 'Es el área o servicio donde trabaja. Ej.: Facturación, Urgencias, Laboratorio.' }) : ''}
+        ${lock('position') ? this.fld('Cargo', ro(e.position), { req: true }) : this.fld('Cargo', `<input class="input" data-bind="employee.position" value="${U.esc(e.position)}" list="posList"><datalist id="posList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist>`, { req: true, err: 'employee.position' })}
+        ${lock('contractType') ? this.fld('Tipo de vinculación', ro(CATALOG.label('contractTypes', e.contractType)), { req: !!rf.contractType }) : this.fld('Tipo de vinculación', `<select class="select" data-bind="employee.contractType">${UI.options(CATALOG.contractTypes, e.contractType)}</select>`, opt('contractType'))}
+        ${lock('supervisor') ? this.fld('Jefe inmediato', ro(e.supervisor), { req: !!rf.supervisor }) : this.fld('Jefe inmediato', `<input class="input" data-bind="employee.supervisor" value="${U.esc(e.supervisor)}">`, opt('supervisor'))}
+        ${lock('seniority') ? this.fld('Antigüedad en la entidad', ro(CATALOG.label('seniority', e.seniority)), { req: !!rf.seniority }) : this.fld('Antigüedad en la entidad', `<select class="select" data-bind="employee.seniority">${UI.options(CATALOG.seniority, e.seniority)}</select>`, opt('seniority'))}
+        ${lock('education') ? this.fld('Formación académica', ro(CATALOG.label('education', e.education)), { req: !!rf.education }) : this.fld('Formación académica', `<select class="select" data-bind="employee.education">${UI.options(CATALOG.education, e.education)}</select>`, opt('education'))}
       </div><div id="dupHint" style="margin-top:12px"></div></div></div>`;
   },
 
@@ -6575,7 +6579,7 @@ const FormView = {
   step5() {
     return `<div class="card">${this.sectionHead(`${this.displayNum(5)}. PROPUESTAS DE MEJORA`, '')}
       <div class="card-body">
-        ${this.fld('¿Qué recomendaciones propone para mejorar el funcionamiento de su área o dependencia?', `<textarea class="textarea" rows="6" data-bind="response.proposals">${U.esc(this.st.response.proposals)}</textarea>`, {})}
+        ${this.fld('¿Qué recomendaciones propone para mejorar el funcionamiento de su área?', `<textarea class="textarea" rows="6" data-bind="response.proposals">${U.esc(this.st.response.proposals)}</textarea>`, {})}
       </div></div>`;
   },
 
@@ -6758,13 +6762,13 @@ const FormView = {
   renderStepperDebounced: U.debounce(() => FormView.st && FormView.renderStepper(), 250),
 
   newDept(select) {
-    const name = window.prompt('Nombre de la nueva dependencia:');
+    const name = window.prompt('Nombre de la nueva área:');
     if (name && name.trim()) {
       const d = DeptService.create(name);
       this.st.employee.departmentId = d.id;
-      select.innerHTML = UI.options(Domain.departments().map(x => [x.id, x.name]), d.id) + '<option value="__new__">+ Crear nueva dependencia…</option>';
+      select.innerHTML = UI.options(Domain.departments().map(x => [x.id, x.name]), d.id) + '<option value="__new__">+ Crear nueva área…</option>';
       this.afterChange();
-      UI.toast('Dependencia creada: ' + d.name);
+      UI.toast('Área creada: ' + d.name);
     } else select.value = this.st.employee.departmentId || '';
   },
 
@@ -6947,7 +6951,7 @@ const FormView = {
     const st = this.st, e = st.employee, r = st.response;
     const skip = ['id', 'studyId', 'responseId', 'employeeId', 'createdAt', 'updatedAt', 'isDemo', 'order'];
     const actividades = st.activities.filter(a => !Validate.isBlankActivity(a)).map(a => Object.fromEntries(Object.entries(a).filter(([k]) => !skip.includes(k))));
-    return { cedula: e.documentId, nombre: e.fullName, dependencia: Domain.deptName(e.departmentId), cargo: e.position, vinculacion: e.contractType, jefe: e.supervisor, antiguedad: e.seniority, formacion: e.education, percepcion: r.perception, desempeno: r.performance, propuestas: r.proposals, declaracion: !!r.declarationAccepted, actividades };
+    return { cedula: e.documentId, nombre: e.fullName, area: Domain.deptName(e.departmentId), cargo: e.position, vinculacion: e.contractType, jefe: e.supervisor, antiguedad: e.seniority, formacion: e.education, percepcion: r.perception, desempeno: r.performance, propuestas: r.proposals, declaracion: !!r.declarationAccepted, actividades };
   },
 
   /** Avance de una corrección: se guarda aparte (editDraft) y la versión enviada no cambia hasta que se vuelve a enviar. */
@@ -7072,7 +7076,7 @@ const FormView = {
 const AnalysisView = {
   /** Carga usada: la validada cuando existe; si no, la calculada con lo declarado. */
   basis: 'best',
-  TABS: [['institucional', 'Institucional'], ['dependencias', 'Por dependencia'], ['actividades', 'Actividades'], ['percepcion', 'Percepción'], ['factores', 'Factores de desempeño'], ['calidad', 'Calidad de datos']],
+  TABS: [['institucional', 'Institucional'], ['areas', 'Por área'], ['actividades', 'Actividades'], ['percepcion', 'Percepción'], ['factores', 'Factores de desempeño'], ['calidad', 'Calidad de datos']],
 
   render(view, tab) {
     const form = Store.form();
@@ -7128,20 +7132,20 @@ const AnalysisView = {
       ${this.card('Carga laboral por funcionario', `Líneas de referencia: ${U.fmt(s.underThreshold)} % y ${U.fmt(s.overThreshold)} %`, `<div class="chart-scroll">${Charts.hbar(emp, { refLines: Charts.loadRefLines(s), unit: ' %' })}</div>`)}`;
   },
 
-  dependencias(rows, s) {
+  areas(rows, s) {
     const deps = Analysis.byDepartment(rows);
     const rank = deps.map(d => ({ label: d.name, value: d.mean, color: Charts.classColor(Calc.classify(d.mean, s)), text: U.pct(d.mean) }));
     const stacked = deps.map(d => ({ label: d.name, parts: ['sub', 'ok', 'over'].map(k => ({ value: d.dist[k].count, color: CATALOG.classes[k].color, label: CATALOG.classes[k].label })) }));
-    return `${this.card('Resumen por dependencia', 'Ordenado por carga promedio (ranking)', this.table(
-      [{ t: '#' }, { t: 'Dependencia' }, { t: 'Funcionarios', num: true }, { t: 'Promedio', num: true }, { t: 'Mínima', num: true }, { t: 'Máxima', num: true }, { t: 'Rango', num: true }, { t: '🟡 Sub.', num: true }, { t: '🟢 Adec.', num: true }, { t: '🔴 Sobre.', num: true }, { t: 'Min/mes', num: true }, { t: 'Carga agregada', num: true }],
+    return `${this.card('Resumen por área', 'Ordenado por carga promedio (ranking)', this.table(
+      [{ t: '#' }, { t: 'Área' }, { t: 'Funcionarios', num: true }, { t: 'Promedio', num: true }, { t: 'Mínima', num: true }, { t: 'Máxima', num: true }, { t: 'Rango', num: true }, { t: '🟡 Sub.', num: true }, { t: '🟢 Adec.', num: true }, { t: '🔴 Sobre.', num: true }, { t: 'Min/mes', num: true }, { t: 'Carga agregada', num: true }],
       deps.map((d, i) => `<tr><td class="muted">${i + 1}</td><td class="t-name">${U.esc(d.name)}</td><td class="num">${d.n}</td><td class="num"><b>${U.pct(d.mean)}</b></td><td class="num">${U.pct(d.min)}</td><td class="num">${U.pct(d.max)}</td><td class="num">${d.n > 1 ? U.fmt(d.spread, 1) + ' p.p.' : '—'}</td><td class="num">${d.dist.sub.count}</td><td class="num">${d.dist.ok.count}</td><td class="num">${d.dist.over.count}</td><td class="num">${U.fmt(d.totalMinutes)}</td><td class="num">${U.pct(d.aggregate)}</td></tr>`)))}
       <div class="sp"></div>
       <div class="grid g2">
-        ${this.card('Ranking de dependencias por carga promedio', '', `<div class="chart-scroll">${Charts.hbar(rank, { refLines: Charts.loadRefLines(s), unit: ' %', labelWidth: 210 })}</div>`)}
-        ${this.card('Distribución de clasificaciones por dependencia', 'Número de funcionarios', `<div class="chart-scroll">${Charts.stacked(stacked, { legend: ['sub', 'ok', 'over'].map(k => ({ label: CATALOG.classes[k].label, color: CATALOG.classes[k].color })) })}</div>`)}
+        ${this.card('Ranking de áreas por carga promedio', '', `<div class="chart-scroll">${Charts.hbar(rank, { refLines: Charts.loadRefLines(s), unit: ' %', labelWidth: 210 })}</div>`)}
+        ${this.card('Distribución de clasificaciones por área', 'Número de funcionarios', `<div class="chart-scroll">${Charts.stacked(stacked, { legend: ['sub', 'ok', 'over'].map(k => ({ label: CATALOG.classes[k].label, color: CATALOG.classes[k].color })) })}</div>`)}
       </div>
       <div class="sp"></div>
-      ${this.card('Detalle de funcionarios por dependencia', 'Permite observar la distribución interna de la carga', deps.map((d, i) => `<div style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><div><b>${U.esc(d.name)}</b> <span class="small muted">· ${d.n} funcionario(s) · promedio ${U.pct(d.mean)}</span></div>${d.n > 1 && d.spread >= 40 ? UI.badge(`Posible distribución desigual (rango ${U.fmt(d.spread, 0)} p.p.)`, 'warn') : ''}</div>
+      ${this.card('Detalle de funcionarios por área', 'Permite observar la distribución interna de la carga', deps.map((d, i) => `<div style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><div><b>${U.esc(d.name)}</b> <span class="small muted">· ${d.n} funcionario(s) · promedio ${U.pct(d.mean)}</span></div>${d.n > 1 && d.spread >= 40 ? UI.badge(`Posible distribución desigual (rango ${U.fmt(d.spread, 0)} p.p.)`, 'warn') : ''}</div>
         ${this.table([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Min/mes', num: true }, { t: 'Carga' }, { t: 'Clasificación' }, { t: 'Validación' }], d.items.map(r => `<tr><td><a href="#/review/${r.employee.id}">${U.esc(r.employee.fullName)}</a></td><td>${U.esc(r.employee.position)}</td><td class="num">${U.fmt(r.ref.totalMinutes)}</td><td>${UI.loadBar(r.ref.loadPct, r.ref.classification)}</td><td>${UI.classBadge(r.ref.classification)}</td><td>${UI.reviewBadge(r.reviewStatus)}</td></tr>`))}</div>`).join(''))}`;
   },
 
@@ -7191,7 +7195,7 @@ const AnalysisView = {
         ${['sub', 'ok', 'over'].map(c => `<tr><td style="text-align:left">${UI.classBadge(c)}</td>${levels.map(l => `<td class="${Analysis.discrepancy(c, l[0]) === 'coincide' ? 'hl' : ''}">${P.matrix[c][l[0]]}</td>`).join('')}<td><b>${U.sum(Object.values(P.matrix[c]))}</b></td></tr>`).join('')}
       </tbody></table></div><p class="small muted" style="margin-top:10px">Las diferencias se presentan para análisis. Una discrepancia puede tener múltiples explicaciones y requiere validación con el funcionario y su jefe inmediato.</p>`)}
       <div class="sp"></div>
-      ${this.card('Comparación por funcionario', 'Ordenado por nivel de discrepancia', this.table([{ t: 'Funcionario' }, { t: 'Dependencia' }, { t: 'Carga', num: true }, { t: 'Clasificación' }, { t: 'Percepción' }, { t: '¿Puede cumplir?' }, { t: 'Resultado' }, { t: 'Dificultad reportada' }],
+      ${this.card('Comparación por funcionario', 'Ordenado por nivel de discrepancia', this.table([{ t: 'Funcionario' }, { t: 'Área' }, { t: 'Carga', num: true }, { t: 'Clasificación' }, { t: 'Percepción' }, { t: '¿Puede cumplir?' }, { t: 'Resultado' }, { t: 'Dificultad reportada' }],
         P.items.map(i => `<tr><td><a href="#/review/${i.row.employee.id}">${U.esc(i.row.employee.fullName)}</a></td><td>${U.esc(i.row.deptName)}</td><td class="num">${U.pct(i.row.ref.loadPct)}</td><td>${UI.classBadge(i.cls)}</td><td>${U.esc(CATALOG.label('perception', i.perception) || '—')}</td><td>${U.esc(CATALOG.label('yesNo', i.canFulfill) || '—')}</td><td>${UI.badge(Analysis.DISCREPANCY[i.result].label, Analysis.DISCREPANCY[i.result].tone)}</td><td class="small" style="max-width:280px">${U.esc(U.truncate(i.row.response.perception.difficulties, 160) || '—')}</td></tr>`)))}`;
   },
 
@@ -7203,7 +7207,7 @@ const AnalysisView = {
         ${this.card('Factores que afectan el desempeño', `Porcentaje sobre ${F.n} funcionarios que enviaron el formulario (selección múltiple)`, this.table([{ t: 'Factor' }, { t: 'Funcionarios', num: true }, { t: '%', num: true }], F.list.map(f => `<tr><td>${U.esc(f.label)}</td><td class="num">${f.count}</td><td class="num">${U.pct(f.pct)}</td></tr>`)) + `<p class="small muted" style="margin-top:8px">${F.none} funcionario(s) no seleccionaron ningún factor.</p>`)}
         ${this.card('Frecuencia de factores reportados', '', `<div class="chart-scroll">${Charts.hbar(F.list.map(f => ({ label: f.label, value: f.pct, color: Charts.C.accent, text: `${f.count} (${U.pct(f.pct, 0)})` })), { max: 100, unit: ' %', labelWidth: 250 })}</div>`)}
       </div><div class="sp"></div>
-      ${this.card('Factores por dependencia', 'Número de funcionarios que reportan cada factor', `<div class="table-wrap"><table class="table table-compact xtab"><thead><tr><th style="text-align:left">Dependencia</th><th>n</th>${CATALOG.performanceFactors.map(f => `<th title="${U.esc(f[1])}">${U.esc(U.truncate(f[1], 18))}</th>`).join('')}</tr></thead><tbody>
+      ${this.card('Factores por área', 'Número de funcionarios que reportan cada factor', `<div class="table-wrap"><table class="table table-compact xtab"><thead><tr><th style="text-align:left">Área</th><th>n</th>${CATALOG.performanceFactors.map(f => `<th title="${U.esc(f[1])}">${U.esc(U.truncate(f[1], 18))}</th>`).join('')}</tr></thead><tbody>
         ${deps.map(d => `<tr><td style="text-align:left">${U.esc(d.name)}</td><td>${d.n}</td>${CATALOG.performanceFactors.map(f => { const c = d.items.filter(r => r.response.performance.factors.includes(f[0])).length; return `<td class="${c ? 'hl' : ''}">${c || '·'}</td>`; }).join('')}</tr>`).join('')}
       </tbody></table></div>`)}
       <div class="sp"></div>
@@ -7227,7 +7231,7 @@ const AnalysisView = {
         ${UI.kpi('Calidad baja', R.quality.baja, 'Puntaje < 60', 'alert', 'bad')}
         ${UI.kpi('Puntaje promedio', U.fmt(U.mean(sub.map(r => r.quality.score)), 0), 'Confiabilidad del cálculo', 'chart')}
       </div><div class="sp"></div>
-      ${this.card('CALIDAD DE INFORMACIÓN por funcionario', 'Indicador separado de la carga: evalúa detalle de actividades, tiempos, frecuencias, coherencia, inconsistencias y generalidad', this.table([{ t: 'Funcionario' }, { t: 'Dependencia' }, { t: 'Actividades', num: true }, { t: 'Puntaje', num: true }, { t: 'Calidad' }, { t: 'Carga laboral', num: true }, { t: 'Validación' }, { t: 'Aspectos a revisar' }],
+      ${this.card('CALIDAD DE INFORMACIÓN por funcionario', 'Indicador separado de la carga: evalúa detalle de actividades, tiempos, frecuencias, coherencia, inconsistencias y generalidad', this.table([{ t: 'Funcionario' }, { t: 'Área' }, { t: 'Actividades', num: true }, { t: 'Puntaje', num: true }, { t: 'Calidad' }, { t: 'Carga laboral', num: true }, { t: 'Validación' }, { t: 'Aspectos a revisar' }],
         ordered.map(r => `<tr><td><a href="#/review/${r.employee.id}">${U.esc(r.employee.fullName)}</a></td><td>${U.esc(r.deptName)}</td><td class="num">${r.activities.length}</td><td class="num"><b>${r.quality.score}</b></td><td>${UI.qualityBadge(r.quality)}</td><td class="num">${U.pct((r.validated || r.calc).loadPct)}</td><td>${UI.reviewBadge(r.reviewStatus)}</td><td class="small">${r.quality.issues.length ? U.esc(r.quality.issues.join('; ')) : '—'}</td></tr>`)))}
       <div class="sp"></div>
       <div class="grid g2">
@@ -7371,14 +7375,14 @@ const Report = {
     out.push(`<div class="rp-section">${h2(2, titles[1])}
       ${p(`<b>Objetivo general.</b> Evaluar la carga laboral del personal de ${U.esc(study.institutionName)} mediante la medición del tiempo dedicado a las actividades habituales de cada cargo.`)}
       ${p('<b>Objetivos específicos.</b> Identificar:')}
-      ${list(['Situaciones de sobrecarga laboral.', 'Situaciones de subutilización de la capacidad laboral disponible.', 'Distribución desigual de la carga entre funcionarios y dependencias.', 'Oportunidades de redistribución de actividades.', 'Necesidades de apoyo (personal, tecnología, capacitación o coordinación).'])}</div>`);
+      ${list(['Situaciones de sobrecarga laboral.', 'Situaciones de subutilización de la capacidad laboral disponible.', 'Distribución desigual de la carga entre funcionarios y áreas.', 'Oportunidades de redistribución de actividades.', 'Necesidades de apoyo (personal, tecnología, capacitación o coordinación).'])}</div>`);
 
     /* 3. ALCANCE */
     const deptCoverage = departments.map(d => { const e = all.filter(r => r.employee.departmentId === d.id); return { d, reg: e.length, sub: e.filter(r => r.formStatus === 'submitted').length }; }).filter(x => x.reg);
     out.push(`<div class="rp-section">${h2(3, titles[2])}
-      ${p(`El formulario «${U.esc(form.name)}» comprendió ${U.plural(all.length, 'funcionario participante', 'funcionarios participantes')} en ${U.plural(deptCoverage.length, 'dependencia', 'dependencias')}, seleccionados de una base de datos de ${U.plural(baseEmployees, 'funcionario registrado', 'funcionarios registrados')} en el contrato. De ellos, ${U.fmt(submitted.length)} diligenciaron y enviaron el formulario (${U.pct(pctOf(submitted.length, all.length))} de cobertura), registrando en conjunto ${U.plural(submitted.reduce((a, r) => a + r.activities.length - (r.validated ? r.validated.excludedCount : 0), 0), 'actividad', 'actividades')}.`)}
+      ${p(`El formulario «${U.esc(form.name)}» comprendió ${U.plural(all.length, 'funcionario participante', 'funcionarios participantes')} en ${U.plural(deptCoverage.length, 'área', 'áreas')}, seleccionados de una base de datos de ${U.plural(baseEmployees, 'funcionario registrado', 'funcionarios registrados')} en el contrato. De ellos, ${U.fmt(submitted.length)} diligenciaron y enviaron el formulario (${U.pct(pctOf(submitted.length, all.length))} de cobertura), registrando en conjunto ${U.plural(submitted.reduce((a, r) => a + r.activities.length - (r.validated ? r.validated.excludedCount : 0), 0), 'actividad', 'actividades')}.`)}
       ${p(`Se incluyen en el análisis ${U.plural(n, 'funcionario', 'funcionarios')}. Al momento de generar este informe, ${R.counts.validated} respuesta(s) se encontraban validadas, ${R.counts.pending} pendientes de revisión, ${R.counts.observed} observadas y ${R.counts.correction} con solicitud de corrección. Los funcionarios que no enviaron el formulario no se incluyen en los cálculos.`)}
-      ${tbl([{ t: 'Dependencia' }, { t: 'Participantes', num: true }, { t: 'Formularios enviados', num: true }, { t: 'Cobertura', num: true }], deptCoverage.map(x => `<tr><td>${U.esc(x.d.name)}</td><td class="num">${x.reg}</td><td class="num">${x.sub}</td><td class="num">${U.pct(pctOf(x.sub, x.reg), 0)}</td></tr>`))}</div>`);
+      ${tbl([{ t: 'Área' }, { t: 'Participantes', num: true }, { t: 'Formularios enviados', num: true }, { t: 'Cobertura', num: true }], deptCoverage.map(x => `<tr><td>${U.esc(x.d.name)}</td><td class="num">${x.reg}</td><td class="num">${x.sub}</td><td class="num">${U.pct(pctOf(x.sub, x.reg), 0)}</td></tr>`))}</div>`);
 
     /* 4. METODOLOGÍA */
     const tb = Questionnaire.timeBasis(s);
@@ -7427,7 +7431,7 @@ const Report = {
     out.push(PB + `<div class="rp-section">${h2(6, titles[5])}
       ${n ? `<div class="rp-kpis"><div class="rp-kpi"><span>Funcionarios analizados</span><b>${n}</b></div><div class="rp-kpi"><span>Carga promedio</span><b>${U.pct(st.mean)}</b></div><div class="rp-kpi"><span>Mediana</span><b>${U.pct(st.median)}</b></div><div class="rp-kpi"><span>Mín. – Máx.</span><b>${U.fmt(st.min, 1)} – ${U.fmt(st.max, 1)} %</b></div></div>` : ''}
       ${p(n ? 'La siguiente tabla presenta los resultados individuales, ordenados de mayor a menor carga laboral.' : 'Aún no se registran respuestas enviadas; por tanto, no es posible presentar resultados.')}
-      ${tbl([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Dependencia' }, { t: 'Min. mensuales', num: true }, { t: 'Carga %', num: true }, { t: 'Clasificación' }, { t: 'Estado de validación' }],
+      ${tbl([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Área' }, { t: 'Min. mensuales', num: true }, { t: 'Carga %', num: true }, { t: 'Clasificación' }, { t: 'Estado de validación' }],
         sorted.map(r => `<tr><td>${nm(r)}</td><td>${U.esc(r.employee.position)}</td><td>${U.esc(r.deptName)}</td><td class="num">${U.fmt(r.ref.totalMinutes)}</td><td class="num"><b>${U.pct(r.ref.loadPct)}</b></td><td>${tag(r.ref.classification)}</td><td>${U.esc(CATALOG.reviewStatus[r.reviewStatus].label)}</td></tr>`),
         `Capacidad mensual de referencia: ${U.fmt(avail)} minutos por funcionario.`)}
       ${notSubmitted.length ? p(`<span class="rp-note">No se incluyen ${U.plural(notSubmitted.length, 'participante', 'participantes')} sin formulario enviado.</span>`) : ''}</div>`);
@@ -7465,13 +7469,13 @@ const Report = {
         : p(`No se identificaron funcionarios con carga superior al ${U.fmt(s.overThreshold)} % en la base de cálculo seleccionada.`)}</div>`);
     out.push(`<div class="rp-section">${h2(9, titles[8])}
       ${subRows.length ? p(`Se identifican ${U.plural(subRows.length, 'funcionario', 'funcionarios')} con carga inferior al ${U.fmt(s.underThreshold)} %. Los datos sugieren que el tiempo estimado para las actividades registradas es inferior a la capacidad mensual de referencia.`) +
-        tbl([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Dependencia' }, { t: 'Min/mes', num: true }, { t: 'Carga %', num: true }, { t: 'Diferencia frente a la capacidad (min/mes)', num: true }], subRows.map(r => `<tr><td>${nm(r)}</td><td>${U.esc(r.employee.position)}</td><td>${U.esc(r.deptName)}</td><td class="num">${U.fmt(r.ref.totalMinutes)}</td><td class="num"><b>${U.pct(r.ref.loadPct)}</b></td><td class="num">${U.fmt(r.ref.availableMinutes - r.ref.totalMinutes)}</td></tr>`)) +
+        tbl([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Área' }, { t: 'Min/mes', num: true }, { t: 'Carga %', num: true }, { t: 'Diferencia frente a la capacidad (min/mes)', num: true }], subRows.map(r => `<tr><td>${nm(r)}</td><td>${U.esc(r.employee.position)}</td><td>${U.esc(r.deptName)}</td><td class="num">${U.fmt(r.ref.totalMinutes)}</td><td class="num"><b>${U.pct(r.ref.loadPct)}</b></td><td class="num">${U.fmt(r.ref.availableMinutes - r.ref.totalMinutes)}</td></tr>`)) +
         subRows.map(r => personBlock(r)).join('') +
         p('Antes de considerar cualquier redistribución de actividades, se recomienda verificar con el funcionario y su jefe inmediato si existen actividades no registradas, actividades de carácter eventual o por demanda, tiempos de disponibilidad propios del cargo o tiempos subestimados. La diferencia frente a la capacidad se presenta como referencia para el análisis de posibles oportunidades de redistribución y no implica, por sí sola, la asignación de nuevas funciones.')
         : p(`No se identificaron funcionarios con carga inferior al ${U.fmt(s.underThreshold)} % en la base de cálculo seleccionada.`)}</div>`);
     out.push(`<div class="rp-section">${h2(10, titles[9])}
       ${okRows.length ? p(`Se identifican ${U.plural(okRows.length, 'funcionario', 'funcionarios')} con carga entre el ${U.fmt(s.underThreshold)} % y el ${U.fmt(s.overThreshold)} %, rango considerado adecuado para este estudio.`) +
-        tbl([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Dependencia' }, { t: 'Min/mes', num: true }, { t: 'Carga %', num: true }, { t: 'Estado de validación' }], okRows.map(r => `<tr><td>${nm(r)}</td><td>${U.esc(r.employee.position)}</td><td>${U.esc(r.deptName)}</td><td class="num">${U.fmt(r.ref.totalMinutes)}</td><td class="num"><b>${U.pct(r.ref.loadPct)}</b></td><td>${U.esc(CATALOG.reviewStatus[r.reviewStatus].label)}</td></tr>`))
+        tbl([{ t: 'Funcionario' }, { t: 'Cargo' }, { t: 'Área' }, { t: 'Min/mes', num: true }, { t: 'Carga %', num: true }, { t: 'Estado de validación' }], okRows.map(r => `<tr><td>${nm(r)}</td><td>${U.esc(r.employee.position)}</td><td>${U.esc(r.deptName)}</td><td class="num">${U.fmt(r.ref.totalMinutes)}</td><td class="num"><b>${U.pct(r.ref.loadPct)}</b></td><td>${U.esc(CATALOG.reviewStatus[r.reviewStatus].label)}</td></tr>`))
         : p('No se identificaron funcionarios en el rango de carga adecuada.')}</div>`);
 
     /* 11. DEPENDENCIAS */
@@ -7479,18 +7483,18 @@ const Report = {
     const uneven = multi.filter(d => d.spread >= 40);
     const depText = [];
     if (deps.length) {
-      depText.push(`Se analizaron ${U.plural(deps.length, 'dependencia', 'dependencias')}. La mayor carga promedio se observa en ${U.esc(deps[0].name)} (${U.pct(deps[0].mean)}, ${U.plural(deps[0].n, 'funcionario', 'funcionarios')})${deps.length > 1 ? ` y la menor en ${U.esc(deps[deps.length - 1].name)} (${U.pct(deps[deps.length - 1].mean)}, ${U.plural(deps[deps.length - 1].n, 'funcionario', 'funcionarios')})` : ''}.`);
+      depText.push(`Se analizaron ${U.plural(deps.length, 'área', 'áreas')}. La mayor carga promedio se observa en ${U.esc(deps[0].name)} (${U.pct(deps[0].mean)}, ${U.plural(deps[0].n, 'funcionario', 'funcionarios')})${deps.length > 1 ? ` y la menor en ${U.esc(deps[deps.length - 1].name)} (${U.pct(deps[deps.length - 1].mean)}, ${U.plural(deps[deps.length - 1].n, 'funcionario', 'funcionarios')})` : ''}.`);
       const withOver = deps.filter(d => d.dist.over.count);
       if (withOver.length) depText.push(`Se registran casos de sobrecarga en: ${withOver.map(d => `${U.esc(d.name)} (${d.dist.over.count})`).join(', ')}.`);
       if (uneven.length) depText.push(`Se evidencia una posible distribución desigual de la carga al interior de ${uneven.map(d => `${U.esc(d.name)} (rango de ${U.fmt(d.spread, 0)} puntos porcentuales entre el mínimo y el máximo)`).join('; ')}, lo cual requiere análisis de la asignación de actividades entre sus funcionarios.`);
       const single = deps.filter(d => d.n === 1).length;
-      if (single) depText.push(`${U.plural(single, 'dependencia cuenta', 'dependencias cuentan')} con un solo funcionario analizado; sus promedios deben interpretarse con cautela.`);
+      if (single) depText.push(`${U.plural(single, 'área cuenta', 'áreas cuentan')} con un solo funcionario analizado; sus promedios deben interpretarse con cautela.`);
     }
     out.push(PB + `<div class="rp-section">${h2(11, titles[10])}${depText.length ? p(depText.join(' ')) : p('Sin datos para analizar.')}
-      ${tbl([{ t: 'Dependencia' }, { t: 'n', num: true }, { t: 'Promedio', num: true }, { t: 'Mínima', num: true }, { t: 'Máxima', num: true }, { t: 'Sub.', num: true }, { t: 'Adec.', num: true }, { t: 'Sobre.', num: true }, { t: 'Carga agregada', num: true }],
+      ${tbl([{ t: 'Área' }, { t: 'n', num: true }, { t: 'Promedio', num: true }, { t: 'Mínima', num: true }, { t: 'Máxima', num: true }, { t: 'Sub.', num: true }, { t: 'Adec.', num: true }, { t: 'Sobre.', num: true }, { t: 'Carga agregada', num: true }],
         deps.map(d => `<tr><td>${U.esc(d.name)}</td><td class="num">${d.n}</td><td class="num"><b>${U.pct(d.mean)}</b></td><td class="num">${U.pct(d.min)}</td><td class="num">${U.pct(d.max)}</td><td class="num">${d.dist.sub.count}</td><td class="num">${d.dist.ok.count}</td><td class="num">${d.dist.over.count}</td><td class="num">${U.pct(d.aggregate)}</td></tr>`),
-        'Carga agregada: suma de minutos mensuales estimados de la dependencia dividida por la capacidad mensual de sus funcionarios analizados.')}
-      ${deps.length ? chart('Ranking de dependencias por carga promedio (%)', Charts.hbar(deps.map(d => ({ label: d.name, value: d.mean, color: Charts.classColor(Calc.classify(d.mean, s)), text: U.pct(d.mean) })), { refLines: Charts.loadRefLines(s), unit: ' %' })) + chart('Distribución de clasificaciones por dependencia', Charts.stacked(deps.map(d => ({ label: d.name, parts: ['sub', 'ok', 'over'].map(k => ({ value: d.dist[k].count, color: cl(k).color, label: cl(k).label })) })), { legend: ['sub', 'ok', 'over'].map(k => ({ label: cl(k).label, color: cl(k).color })) })) : ''}</div>`);
+        'Carga agregada: suma de minutos mensuales estimados del área dividida por la capacidad mensual de sus funcionarios analizados.')}
+      ${deps.length ? chart('Ranking de áreas por carga promedio (%)', Charts.hbar(deps.map(d => ({ label: d.name, value: d.mean, color: Charts.classColor(Calc.classify(d.mean, s)), text: U.pct(d.mean) })), { refLines: Charts.loadRefLines(s), unit: ' %' })) + chart('Distribución de clasificaciones por área', Charts.stacked(deps.map(d => ({ label: d.name, parts: ['sub', 'ok', 'over'].map(k => ({ value: d.dist[k].count, color: cl(k).color, label: cl(k).label })) })), { legend: ['sub', 'ok', 'over'].map(k => ({ label: cl(k).label, color: cl(k).color })) })) : ''}</div>`);
 
     /* 12. ACTIVIDADES */
     const actParas = [];
@@ -7500,10 +7504,10 @@ const Report = {
     }
     out.push(`<div class="rp-section">${h2(12, titles[11])}${actParas.length ? p(actParas.join(' ')) : p('Sin actividades para analizar.')}
       ${h3('12.1 Actividades de mayor impacto en tiempo')}
-      ${tbl([{ t: 'Actividad' }, { t: 'Funcionario' }, { t: 'Dependencia' }, { t: 'Frec./mes', num: true }, { t: 'Min/ejec.', num: true }, { t: 'Min/mes', num: true }], A.top.slice(0, 10).map(x => `<tr><td>${actName(x)}</td><td>${nm(x.row)}</td><td>${U.esc(x.deptName)}</td><td class="num">${U.fmt(x.freqMonthly, 1)}</td><td class="num">${U.fmt(x.time, 1)}</td><td class="num"><b>${U.fmt(x.monthlyMinutes)}</b></td></tr>`))}
+      ${tbl([{ t: 'Actividad' }, { t: 'Funcionario' }, { t: 'Área' }, { t: 'Frec./mes', num: true }, { t: 'Min/ejec.', num: true }, { t: 'Min/mes', num: true }], A.top.slice(0, 10).map(x => `<tr><td>${actName(x)}</td><td>${nm(x.row)}</td><td>${U.esc(x.deptName)}</td><td class="num">${U.fmt(x.freqMonthly, 1)}</td><td class="num">${U.fmt(x.time, 1)}</td><td class="num"><b>${U.fmt(x.monthlyMinutes)}</b></td></tr>`))}
       ${Q.on('type') && A.byType.length ? chart('Tiempo mensual por tipo de actividad (min)', Charts.hbar(A.byType.map(t => ({ label: `${t.label} (${t.count})`, value: t.minutes, color: Charts.C.accent, text: U.fmt(t.minutes) })))) : ''}
       ${h3('12.2 Posibles duplicidades o actividades compartidas')}
-      ${A.similar.length ? p(`Se identifican ${U.plural(A.similar.length, 'grupo', 'grupos')} de actividades con denominaciones muy similares registradas por dos o más funcionarios. Esta coincidencia puede corresponder a actividades compartidas legítimamente o a posibles duplicidades; se recomienda analizar cada caso.`) + tbl([{ t: 'Actividad (referencia)' }, { t: 'Funcionarios', num: true }, { t: 'Dependencias' }, { t: 'Min/mes', num: true }], A.similar.map(g => `<tr><td>${U.esc(g.name)}</td><td class="num">${g.employees}</td><td>${U.esc(g.depts.join(', '))}</td><td class="num">${U.fmt(g.minutes)}</td></tr>`)) : p('No se identificaron actividades con denominaciones similares entre funcionarios.')}
+      ${A.similar.length ? p(`Se identifican ${U.plural(A.similar.length, 'grupo', 'grupos')} de actividades con denominaciones muy similares registradas por dos o más funcionarios. Esta coincidencia puede corresponder a actividades compartidas legítimamente o a posibles duplicidades; se recomienda analizar cada caso.`) + tbl([{ t: 'Actividad (referencia)' }, { t: 'Funcionarios', num: true }, { t: 'Áreas' }, { t: 'Min/mes', num: true }], A.similar.map(g => `<tr><td>${U.esc(g.name)}</td><td class="num">${g.employees}</td><td>${U.esc(g.depts.join(', '))}</td><td class="num">${U.fmt(g.minutes)}</td></tr>`)) : p('No se identificaron actividades con denominaciones similares entre funcionarios.')}
       ${h3('12.3 Actividades que dependen de otras áreas')}
       ${!Q.on('flow') ? notAsked('la dependencia de otras áreas y el destino de los resultados') : A.dependent.length ? p(`${U.plural(A.dependent.length, 'actividad depende', 'actividades dependen')} de información de otras personas o áreas (${U.pct(pctOf(A.dependent.length, A.list.length))} del total). Las fuentes más citadas pueden representar posibles cuellos de botella que requieren análisis.`) + tbl([{ t: 'Depende de' }, { t: 'Actividades', num: true }, { t: 'Funcionarios', num: true }, { t: 'Min/mes', num: true }], A.areas.slice(0, 10).map(a => `<tr><td>${U.esc(a.name)}</td><td class="num">${a.count}</td><td class="num">${a.employees}</td><td class="num">${U.fmt(a.minutes)}</td></tr>`)) : p('No se reportaron actividades dependientes de otras áreas.')}
       ${h3('12.4 Actividades reportadas como ajenas al cargo')}
@@ -7524,7 +7528,7 @@ const Report = {
     out.push(!Q.on('perceivedLoad') ? `<div class="rp-section">${h2(14, titles[13])}${notAsked('la percepción de la carga laboral')}</div>` : `<div class="rp-section">${h2(14, titles[13])}
       ${n ? p(`Al comparar la clasificación de la carga con la percepción manifestada por cada funcionario, ${U.plural(P.counts.coincide, 'caso resulta coincidente', 'casos resultan coincidentes')}, ${P.counts.moderada} ${P.counts.moderada === 1 ? 'presenta' : 'presentan'} una discrepancia moderada y ${P.counts.alta} una discrepancia alta. ${P.cannot.length ? `${U.plural(P.cannot.length, 'funcionario manifestó', 'funcionarios manifestaron')} no poder cumplir sus funciones dentro de la jornada; de ellos, ${P.cannotByClass.over} ${P.cannotByClass.over === 1 ? 'presenta' : 'presentan'} sobrecarga, ${P.cannotByClass.ok} carga adecuada y ${P.cannotByClass.sub} subutilización según el cálculo.` : ''} Estas diferencias se presentan para análisis y no se interpretan automáticamente; pueden obedecer a factores no capturados por la medición del tiempo, a la subestimación o sobreestimación de tiempos, o a condiciones del entorno de trabajo, lo cual requiere verificación.`) : p('Sin datos para analizar.')}
       ${n ? `<table class="rp-table"><thead><tr><th>Clasificación \\ Percepción</th>${CATALOG.perception.map(l => `<th class="num">${l[1]}</th>`).join('')}</tr></thead><tbody>${['sub', 'ok', 'over'].map(c => `<tr><td>${tag(c)}</td>${CATALOG.perception.map(l => `<td class="num" style="${Analysis.discrepancy(c, l[0]) === 'coincide' ? 'font-weight:700;background:#E1F1E7' : ''}">${P.matrix[c][l[0]]}</td>`).join('')}</tr>`).join('')}</tbody></table>` : ''}
-      ${disc.length ? h3('Casos con discrepancia para análisis') + tbl([{ t: 'Funcionario' }, { t: 'Dependencia' }, { t: 'Carga %', num: true }, { t: 'Clasificación' }, { t: 'Percepción' }, { t: '¿Puede cumplir?' }, { t: 'Resultado' }], disc.map(i => `<tr><td>${nm(i.row)}</td><td>${U.esc(i.row.deptName)}</td><td class="num">${U.pct(i.row.ref.loadPct)}</td><td>${tag(i.cls)}</td><td>${U.esc(CATALOG.label('perception', i.perception))}</td><td>${U.esc(CATALOG.label('yesNo', i.canFulfill))}</td><td>${Analysis.DISCREPANCY[i.result].label}</td></tr>`)) : ''}</div>`);
+      ${disc.length ? h3('Casos con discrepancia para análisis') + tbl([{ t: 'Funcionario' }, { t: 'Área' }, { t: 'Carga %', num: true }, { t: 'Clasificación' }, { t: 'Percepción' }, { t: '¿Puede cumplir?' }, { t: 'Resultado' }], disc.map(i => `<tr><td>${nm(i.row)}</td><td>${U.esc(i.row.deptName)}</td><td class="num">${U.pct(i.row.ref.loadPct)}</td><td>${tag(i.cls)}</td><td>${U.esc(CATALOG.label('perception', i.perception))}</td><td>${U.esc(CATALOG.label('yesNo', i.canFulfill))}</td><td>${Analysis.DISCREPANCY[i.result].label}</td></tr>`)) : ''}</div>`);
 
     /* 15. OBSERVACIONES Y VALIDACIONES */
     out.push(`<div class="rp-section">${h2(15, titles[14])}
@@ -7541,7 +7545,7 @@ const Report = {
       ops.push(`<b>Distribución de actividades en casos de sobrecarga.</b> Se recomienda analizar la organización de las actividades de mayor participación en los ${U.plural(overRows.length, 'caso', 'casos')} de sobrecarga identificados, en particular: ${U.uniq(acts).slice(0, 6).join(', ')}.`);
     }
     if (subRows.length) ops.push(`<b>Validación de casos de subutilización.</b> Se recomienda validar la información de ${U.plural(subRows.length, 'funcionario', 'funcionarios')} con carga inferior al ${U.fmt(s.underThreshold)} % y, una vez verificada, analizar posibles oportunidades de redistribución de actividades.`);
-    if (uneven.length) ops.push(`<b>Equilibrio de la carga dentro de las dependencias.</b> Se evidencia una posible distribución desigual en ${uneven.map(d => U.esc(d.name)).join(', ')}; se recomienda analizar la asignación de actividades entre sus funcionarios.`);
+    if (uneven.length) ops.push(`<b>Equilibrio de la carga dentro de las áreas.</b> Se evidencia una posible distribución desigual en ${uneven.map(d => U.esc(d.name)).join(', ')}; se recomienda analizar la asignación de actividades entre sus funcionarios.`);
     if (A.similar.length) ops.push(`<b>Posibles duplicidades.</b> Se identificaron ${U.plural(A.similar.length, 'grupo', 'grupos')} de actividades similares realizadas por varios funcionarios (p. ej. «${U.esc(A.similar[0].name)}»); se recomienda revisar si corresponden a trabajo compartido o a duplicidades.`);
     const techF = A.factors.filter(f => ['fallas_sistema', 'falta_herramientas'].includes(f.key));
     if (Q.on('factors') && techF.length) ops.push(`<b>Herramientas tecnológicas.</b> ${U.plural(U.sum(techF.map(f => f.count)), 'registro de actividad reporta', 'registros de actividades reportan')} fallas del sistema o falta de herramientas tecnológicas, asociados a ${U.fmt(U.sum(techF.map(f => f.minutes)))} minutos mensuales; se recomienda analizar las necesidades tecnológicas de dichas actividades.`);
@@ -7557,7 +7561,7 @@ const Report = {
     out.push(`<div class="rp-section">${h2(16, titles[15])}
       ${p('Las siguientes oportunidades de mejora se derivan exclusivamente de los datos recolectados y de la revisión realizada. No establecen causas ni decisiones administrativas; orientan los aspectos que requieren análisis.')}
       ${ops.length ? `<ol>${ops.map(x => `<li>${x}</li>`).join('')}</ol>` : p('Con la información disponible no se identifican oportunidades de mejora específicas adicionales.')}
-      ${Q.on('proposals') && F.proposals.length ? h3('Propuestas registradas por los funcionarios') + tbl([{ t: 'Cargo' }, { t: 'Dependencia' }, { t: 'Propuesta' }], F.proposals.map(x => `<tr><td>${U.esc(x.row.employee.position)}</td><td>${U.esc(x.row.deptName)}</td><td>${U.esc(x.text)}</td></tr>`)) : ''}</div>`);
+      ${Q.on('proposals') && F.proposals.length ? h3('Propuestas registradas por los funcionarios') + tbl([{ t: 'Cargo' }, { t: 'Área' }, { t: 'Propuesta' }], F.proposals.map(x => `<tr><td>${U.esc(x.row.employee.position)}</td><td>${U.esc(x.row.deptName)}</td><td>${U.esc(x.text)}</td></tr>`)) : ''}</div>`);
 
     /* 17. CONCLUSIONES */
     const concl = [];
@@ -7566,13 +7570,13 @@ const Report = {
       concl.push(`La carga laboral promedio de los funcionarios analizados es de ${U.pct(st.mean)} (mediana ${U.pct(st.median)}), valor que se ubica en el rango de ${cl(Calc.classify(st.mean, s)).label.toLowerCase()}. No obstante, el promedio no refleja la situación individual: ${inst.dist.over.count} funcionario(s) presentan sobrecarga, ${inst.dist.ok.count} carga adecuada y ${inst.dist.sub.count} subutilización.`);
       if (overRows.length) { const g = U.groupBy(overRows, r => r.deptName); concl.push(`Los casos de sobrecarga se concentran en: ${[...g.entries()].sort((a, b) => b[1].length - a[1].length).map(([d, it]) => `${U.esc(d)} (${it.length})`).join(', ')}. Estos resultados requieren análisis de las actividades que los explican antes de considerar medidas organizacionales.`); }
       if (subRows.length) concl.push(`Los ${U.plural(subRows.length, 'caso', 'casos')} de subutilización requieren validación con los funcionarios y sus jefes inmediatos antes de interpretarse como disponibilidad efectiva de tiempo.`);
-      if (uneven.length) concl.push(`Se observa una posible distribución desigual de la carga dentro de ${U.plural(uneven.length, 'dependencia', 'dependencias')} (${uneven.map(d => U.esc(d.name)).join(', ')}).`);
+      if (uneven.length) concl.push(`Se observa una posible distribución desigual de la carga dentro de ${U.plural(uneven.length, 'área', 'áreas')} (${uneven.map(d => U.esc(d.name)).join(', ')}).`);
       if (A.list.length) concl.push(`Las 10 actividades de mayor consumo concentran el ${U.pct(A.top10Share)} del tiempo mensual registrado${A.similar.length ? `, y se identificaron ${A.similar.length} grupo(s) de actividades similares entre funcionarios que podrían corresponder a trabajo compartido o duplicidades` : ''}.`);
       if (Q.on('performanceFactors') && topF.length) concl.push(`El factor de desempeño más reportado por los funcionarios fue «${U.esc(topF[0].label)}» (${U.pct(topF[0].pct)} de los funcionarios analizados).`);
       if (Q.on('perceivedLoad') && P.counts.alta + P.counts.moderada) concl.push(`Se identificaron ${P.counts.alta + P.counts.moderada} caso(s) en los que la percepción del funcionario difiere de su carga laboral, lo cual requiere análisis individual.`);
     }
     concl.push(`${U.pct(pctOf(R.counts.validated, submitted.length), 0)} de las respuestas enviadas cuenta con validación administrativa. Los resultados no validados deben considerarse preliminares.`);
-    concl.push('Se recomienda que los resultados sean analizados de manera conjunta con los jefes de dependencia y el área de talento humano, como insumo técnico para las decisiones sobre la organización del trabajo.');
+    concl.push('Se recomienda que los resultados sean analizados de manera conjunta con los jefes de área y el área de talento humano, como insumo técnico para las decisiones sobre la organización del trabajo.');
     out.push(`<div class="rp-section">${h2(17, titles[16])}<ol>${concl.map(c => `<li>${c}</li>`).join('')}</ol>
       <div class="rp-sign">${sig ? `<img class="rp-sign-img" src="${sig}" alt="Firma" style="${Signature.style(study, 54, 'pt')}">` : ''}<div class="rp-sign-line"></div><b>${U.esc(o.preparedBy || '')}</b>${respLines.map(l => `<br>${U.esc(l)}`).join('')}${respContact ? `<br><span style="color:#5a6873">${U.esc(respContact)}</span>` : ''}</div></div>`);
 
@@ -8165,7 +8169,7 @@ const Exporter = {
       const v = r.validation, c = r.calc, ref = Domain.ref(r, 'best'), p = r.response ? r.response.perception : {}, pf = r.response ? r.response.performance : { factors: [] };
       return {
         institucion: st.institutionName, contrato: st.name, formulario: form.name, periodo: form.period,
-        funcionario_id: r.employee.id, nombre: r.employee.fullName, documento: r.employee.documentId, dependencia: r.deptName, cargo: r.employee.position,
+        funcionario_id: r.employee.id, nombre: r.employee.fullName, documento: r.employee.documentId, area: r.deptName, cargo: r.employee.position,
         tipo_vinculacion: CATALOG.label('contractTypes', r.employee.contractType), jefe_inmediato: r.employee.supervisor, antiguedad: CATALOG.label('seniority', r.employee.seniority), formacion: CATALOG.label('education', r.employee.education),
         estado_formulario: CATALOG.formStatus[r.formStatus].label, fecha_envio: r.response && r.response.submittedAt ? Views.localDate(r.response.submittedAt) : '', version: r.response ? r.response.version : '',
         actividades: r.activities.length - (r.validated ? r.validated.excludedCount : 0),
@@ -8193,7 +8197,7 @@ const Exporter = {
         const c = Calc.activity(a, s, adj[a.id]);
         if (c.excluded) return; // Excluida en la revisión: ya no forma parte de lo registrado
         out.push({
-          formulario: form.name, actividad_id: a.id, funcionario_id: r.employee.id, funcionario: r.employee.fullName, dependencia: r.deptName, cargo: r.employee.position, estado_formulario: CATALOG.formStatus[r.formStatus].label,
+          formulario: form.name, actividad_id: a.id, funcionario_id: r.employee.id, funcionario: r.employee.fullName, area: r.deptName, cargo: r.employee.position, estado_formulario: CATALOG.formStatus[r.formStatus].label,
           orden: ++n, nombre: a.name, descripcion: a.description, tipo: a.type === 'otra' ? 'Otra: ' + a.typeOther : CATALOG.label('activityTypes', a.type),
           frecuencia: Domain.freqLabel(a, adj[a.id]), frecuencia_mensual: c.freqMonthly ?? '', tiempo_por_vez: c.time ?? '', minutos_mensuales: c.monthlyMinutes,
           suma_a_carga: c.counted ? 'Sí' : 'No', eventual: c.eventual ? 'Sí' : 'No',
@@ -8213,7 +8217,7 @@ const Exporter = {
     return Domain.departments().map(d => {
       const a = deps.find(x => x.id === d.id);
       const reg = all.filter(r => r.employee.departmentId === d.id);
-      return { dependencia_id: d.id, dependencia: d.name, funcionarios_en_base: Store.inStudy('employees').filter(e => e.departmentId === d.id).length, participantes_formulario: reg.length, formularios_enviados: reg.filter(r => r.formStatus === 'submitted').length, funcionarios_analizados: a ? a.n : 0, carga_promedio_pct: a ? a.mean : '', carga_minima_pct: a ? a.min : '', carga_maxima_pct: a ? a.max : '', subutilizacion: a ? a.dist.sub.count : 0, carga_adecuada: a ? a.dist.ok.count : 0, sobrecarga: a ? a.dist.over.count : 0, minutos_mensuales: a ? a.totalMinutes : 0, carga_agregada_pct: a ? a.aggregate : '' };
+      return { area_id: d.id, area: d.name, funcionarios_en_base: Store.inStudy('employees').filter(e => e.departmentId === d.id).length, participantes_formulario: reg.length, formularios_enviados: reg.filter(r => r.formStatus === 'submitted').length, funcionarios_analizados: a ? a.n : 0, carga_promedio_pct: a ? a.mean : '', carga_minima_pct: a ? a.min : '', carga_maxima_pct: a ? a.max : '', subutilizacion: a ? a.dist.sub.count : 0, carga_adecuada: a ? a.dist.ok.count : 0, sobrecarga: a ? a.dist.over.count : 0, minutos_mensuales: a ? a.totalMinutes : 0, carga_agregada_pct: a ? a.aggregate : '' };
     });
   },
   validationsRows() {
@@ -8477,7 +8481,7 @@ const Exporter = {
     const formsCount = new Map();
     Store.inStudy('assignments').forEach(a => formsCount.set(a.employeeId, (formsCount.get(a.employeeId) || 0) + 1));
     return Store.inStudy('employees').sort((a, b) => a.fullName.localeCompare(b.fullName, 'es')).map(e => ({
-      'Nombre completo': e.fullName, 'Documento': e.documentId, 'Dependencia': Domain.deptName(e.departmentId), 'Cargo': e.position,
+      'Nombre completo': e.fullName, 'Documento': e.documentId, 'Área': Domain.deptName(e.departmentId), 'Cargo': e.position,
       'Tipo de vinculación': CATALOG.label('contractTypes', e.contractType), 'Jefe inmediato': e.supervisor, 'Antigüedad': CATALOG.label('seniority', e.seniority),
       'Formación académica': CATALOG.label('education', e.education), 'Correo': e.email, 'Teléfono': e.phone, 'Estado': CATALOG.employeeStatus[e.status].label,
       'Observaciones': e.notes, 'Formularios': formsCount.get(e.id) || 0, 'ID': e.id,
@@ -8506,7 +8510,7 @@ const Exporter = {
       { name: 'Parámetros', rows: this.table(this.paramsRows()), filter: false, widths: [34, 50] },
       { name: 'Resultados', rows: this.table(this.resultsRows()) },
       { name: 'Actividades', rows: this.table(this.activitiesRows()) },
-      { name: 'Dependencias', rows: this.table(this.departmentsRows()) },
+      { name: 'Áreas', rows: this.table(this.departmentsRows()) },
       { name: 'Validaciones', rows: this.table(this.validationsRows()) },
       { name: 'Funcionarios', rows: this.table(this.employeesRows()) },
     ], { title: `Resultados — ${form.name}`, creator: App.user().name });
@@ -8525,7 +8529,7 @@ const Exporter = {
       ['Antigüedad', CATALOG.seniority.map(x => x[1])],
       ['Formación académica', CATALOG.education.map(x => x[1])],
       ['Estado', Object.values(CATALOG.employeeStatus).map(x => x.label)],
-      ['Dependencias registradas', Domain.departments().map(d => d.name)],
+      ['Áreas registradas', Domain.departments().map(d => d.name)],
     ];
     const maxLen = Math.max(...lists.map(l => l[1].length), 1);
     const listRows = [lists.map(l => l[0]), ...Array.from({ length: maxLen }, (_, i) => lists.map(l => l[1][i] ?? null))];
@@ -8537,13 +8541,13 @@ const Exporter = {
       { col: idx('Formación académica'), list: ref(2, lists[2][1].length) },
       { col: idx('Estado'), list: ref(3, lists[3][1].length) },
     ];
-    if (lists[4][1].length) validations.push({ col: idx('Dependencia'), list: ref(4, lists[4][1].length) });
+    if (lists[4][1].length) validations.push({ col: idx('Área'), list: ref(4, lists[4][1].length) });
     const instructions = [
       ['Instrucciones para diligenciar la base de funcionarios'], [],
       ['1', 'Registre un funcionario por fila en la hoja «Funcionarios». No cambie los títulos de las columnas.'],
       ['2', '«Nombre completo» es obligatorio. Se recomienda registrar el documento para evitar duplicados.'],
       ['3', 'Las columnas de vinculación, antigüedad, formación y estado tienen listas desplegables (hoja «Listas»).'],
-      ['4', 'Si escribe una dependencia que no existe, se creará automáticamente al importar.'],
+      ['4', 'Si escribe un área que no existe, se creará automáticamente al importar.'],
       ['5', 'Al importar, los funcionarios con el mismo documento (o el mismo ID) se actualizan; las celdas vacías no borran datos existentes.'],
       ['6', 'Importe el archivo desde Funcionarios → Cargue masivo.'],
     ];
@@ -8577,7 +8581,7 @@ const ExportView = {
     view.innerHTML = Views.pageHead('Datos', 'Exportar y administrar datos', `Contrato: <b>${U.esc(st.institutionName)} — ${U.esc(st.name)}</b> · ${Views.formContext(form)}<br>Todos los archivos se exportan e importan en formato Excel (.xlsx).`) + `
       <div class="grid g2">
         <div class="card"><div class="card-head"><div><div class="card-title">Exportar a Excel (.xlsx)</div><div class="card-sub">Para análisis y presentación de resultados</div></div></div><div class="card-body stack">
-          <div class="export-option"><div><b>Resultados del formulario activo</b><div class="small muted">Hojas: Parámetros, Resultados, Actividades, Dependencias, Validaciones y Funcionarios.</div></div><button class="btn btn-primary" data-action="formXlsx" ${dis}>${icon('download')} Descargar .xlsx</button></div>
+          <div class="export-option"><div><b>Resultados del formulario activo</b><div class="small muted">Hojas: Parámetros, Resultados, Actividades, Áreas, Validaciones y Funcionarios.</div></div><button class="btn btn-primary" data-action="formXlsx" ${dis}>${icon('download')} Descargar .xlsx</button></div>
           <div class="export-option"><div><b>Base de datos de funcionarios</b><div class="small muted">Mismo formato de la plantilla de importación; puede editarse en Excel y volver a importarse.</div></div><button class="btn" data-action="employeesXlsx">${icon('download')} Descargar .xlsx</button></div>
           <div class="export-option"><div><b>Plantilla de cargue masivo de funcionarios</b><div class="small muted">Incluye listas desplegables de vinculación, antigüedad, formación y estado.</div></div><button class="btn" data-action="templateXlsx">${icon('download')} Descargar plantilla</button></div>
           ${form ? '' : '<p class="small muted" style="margin:0">Seleccione un formulario activo para exportar sus resultados.</p>'}
@@ -8592,7 +8596,7 @@ const ExportView = {
       </div><div class="sp"></div>
       <div class="grid g2">
         <div class="card"><div class="card-head"><div><div class="card-title">Datos de demostración</div><div class="card-sub">Funcionarios y formulario ficticios para probar la metodología</div></div>${hasDemo ? UI.badge('Cargados', 'info') : ''}</div><div class="card-body stack">
-          <p style="margin:0;color:var(--text-2)">Crea 12 funcionarios <b>claramente ficticios</b> en 6 dependencias y un formulario de demostración con casos de subutilización, carga adecuada, sobrecarga, datos atípicos, actividades duplicadas, pendientes, borradores y distintos estados de validación.</p>
+          <p style="margin:0;color:var(--text-2)">Crea 12 funcionarios <b>claramente ficticios</b> en 6 áreas y un formulario de demostración con casos de subutilización, carga adecuada, sobrecarga, datos atípicos, actividades duplicadas, pendientes, borradores y distintos estados de validación.</p>
           <div class="row"><button class="btn btn-primary" data-action="demo">${icon('layers')} GENERAR DATOS DE DEMOSTRACIÓN</button><button class="btn btn-danger" data-action="undemo" ${hasDemo ? '' : 'disabled'}>${icon('trash')} ELIMINAR DATOS DE DEMOSTRACIÓN</button></div>
         </div></div>
         <div class="card"><div class="card-head"><div><div class="card-title">Zona de riesgo</div><div class="card-sub">Acciones irreversibles</div></div></div><div class="card-body stack">
@@ -8627,7 +8631,7 @@ const ExportView = {
         },
         wipeStudy: async () => {
           const nR = Store.inStudy('responses').length, nE = Store.inStudy('employees').length, nF = Store.inStudy('forms').length;
-          const choice = await UI.confirmDanger({ title: 'Eliminar datos del contrato', message: `Se eliminarán ${U.plural(nE, 'funcionario', 'funcionarios')}, ${U.plural(nF, 'formulario', 'formularios')} y ${U.plural(nR, 'respuesta', 'respuestas')} del contrato activo, con sus participantes y validaciones. Se conservan los datos del contrato, su configuración y sus dependencias.`, backup: true });
+          const choice = await UI.confirmDanger({ title: 'Eliminar datos del contrato', message: `Se eliminarán ${U.plural(nE, 'funcionario', 'funcionarios')}, ${U.plural(nF, 'formulario', 'formularios')} y ${U.plural(nR, 'respuesta', 'respuestas')} del contrato activo, con sus participantes y validaciones. Se conservan los datos del contrato, su configuración y sus áreas.`, backup: true });
           if (!choice || !(await Backup.before(choice, 'study'))) return;
           const sid = Store.sid();
           ['activities', 'validations', 'responses', 'assignments', 'events', 'forms', 'employees'].forEach(t => Store.removeWhere(t, r => r.studyId === sid));
@@ -8672,7 +8676,7 @@ const SettingsView = {
     const card = (id, title, sub, body) => `<div class="card" id="${id}"><div class="card-head"><div><div class="card-title">${title}</div>${sub ? `<div class="card-sub">${sub}</div>` : ''}</div></div><div class="card-body">${body}</div></div>`;
     view.innerHTML = Views.pageHead('Administración', 'CONFIGURACIÓN', `Contrato <b>${U.esc(study.institutionName)}</b> · ${Views.formContext(form)}. Los parámetros no están fijos en el código: se guardan por formulario y se aplican a todos sus cálculos.`, `<button class="btn btn-primary" data-action="save">${icon('check')} Guardar configuración</button>`) + `
       <div class="grid" style="grid-template-columns:200px minmax(0,1fr);align-items:start" id="settingsGrid">
-        <nav class="settings-nav"><a href="javascript:void 0" data-action="jump" data-t="sEstudio">Datos del contrato</a><a href="javascript:void 0" data-action="jump" data-t="sResp">Responsable del estudio</a><a href="javascript:void 0" data-action="jump" data-t="sParam">Parámetros de tiempo</a><a href="javascript:void 0" data-action="jump" data-t="sClas">Clasificación y metodología</a><a href="javascript:void 0" data-action="jump" data-t="sFreq">Factores de frecuencia</a><a href="javascript:void 0" data-action="jump" data-t="sAlert">Alertas</a><a href="javascript:void 0" data-action="jump" data-t="sReq">Campos obligatorios</a><a href="javascript:void 0" data-action="jump" data-t="sDept">Dependencias</a></nav>
+        <nav class="settings-nav"><a href="javascript:void 0" data-action="jump" data-t="sEstudio">Datos del contrato</a><a href="javascript:void 0" data-action="jump" data-t="sResp">Responsable del estudio</a><a href="javascript:void 0" data-action="jump" data-t="sParam">Parámetros de tiempo</a><a href="javascript:void 0" data-action="jump" data-t="sClas">Clasificación y metodología</a><a href="javascript:void 0" data-action="jump" data-t="sFreq">Factores de frecuencia</a><a href="javascript:void 0" data-action="jump" data-t="sAlert">Alertas</a><a href="javascript:void 0" data-action="jump" data-t="sReq">Campos obligatorios</a><a href="javascript:void 0" data-action="jump" data-t="sDept">Áreas</a></nav>
         <div class="stack">
           ${card('sEstudio', 'Datos del contrato', 'Aparecen en el panel, el formulario y la portada del informe', `<div class="form-grid">
             ${txt('study.institutionName', 'Nombre de la institución')}${txt('study.name', 'Nombre del contrato', 'Ej.: Contrato de consultoría 045-2026')}
@@ -8723,8 +8727,8 @@ const SettingsView = {
             ${num('p.alerts.minActivities', 'Mínimo de actividades esperado', '', '1')}
           </div>`)}
           ${form ? `<label class="check card card-pad" style="margin:0"><input type="checkbox" data-k="alsoDefault"><span>Guardar también estos parámetros como <b>valores por defecto del contrato</b> para los nuevos formularios</span></label>` : ''}
-          ${card('sReq', 'Campos de identificación obligatorios', 'Aplican a todo el contrato. Nombre, dependencia y cargo son siempre obligatorios', `<div class="grid g3">${Validate.ID_FIELDS.map(([k, l]) => `<label class="switch"><input type="checkbox" data-k="study.settings.requiredFields.${k}" ${d.study.settings.requiredFields[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>`)}
-          <div class="card" id="sDept"><div class="card-head"><div><div class="card-title">Dependencias del contrato</div><div class="card-sub">Los cambios en dependencias se guardan inmediatamente</div></div></div><div class="card-body" id="deptBox"></div></div>
+          ${card('sReq', 'Campos de identificación obligatorios', 'Aplican a todo el contrato. Nombre, área y cargo son siempre obligatorios', `<div class="grid g3">${Validate.ID_FIELDS.map(([k, l]) => `<label class="switch"><input type="checkbox" data-k="study.settings.requiredFields.${k}" ${d.study.settings.requiredFields[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>`)}
+          <div class="card" id="sDept"><div class="card-head"><div><div class="card-title">Áreas del contrato</div><div class="card-sub">Ej.: Facturación, Urgencias, Laboratorio, Talento Humano. Los funcionarios eligen la suya en el formulario; los cambios se guardan inmediatamente</div></div></div><div class="card-body" id="deptBox"></div></div>
           <div class="row" style="justify-content:flex-end"><button class="btn btn-ghost" data-action="defaults">Restaurar parámetros por defecto</button><button class="btn btn-primary btn-lg" data-action="save">${icon('check')} Guardar configuración</button></div>
         </div>
       </div>`;
@@ -8775,7 +8779,7 @@ const SettingsView = {
       else if (a === 'defsign') { d.study.signatureDataUrl = Signature.DEFAULT; $('#signBox').innerHTML = `<img src="${Signature.DEFAULT}" alt="Firma">`; this.refreshResp(); UI.toast('Firma restablecida (pendiente guardar configuración)'); }
       else if (a === 'resetFactors') { s.frequencyFactors = { ...DEFAULT_SETTINGS.frequencyFactors }; Object.entries(s.frequencyFactors).forEach(([k, v]) => { const i = $(`[data-k="p.frequencyFactors.${k}"]`, view); if (i) i.value = v; }); UI.toast('Factores restaurados (pendiente guardar)'); }
       else if (a === 'defaults') {
-        UI.confirm(`Se restaurarán los parámetros de tiempo, clasificación, factores y alertas ${target} a sus valores por defecto. Los datos del contrato, las dependencias y los campos obligatorios no cambian.`, { title: 'Restaurar parámetros', ok: 'Restaurar' }).then(ok => {
+        UI.confirm(`Se restaurarán los parámetros de tiempo, clasificación, factores y alertas ${target} a sus valores por defecto. Los datos del contrato, las áreas y los campos obligatorios no cambian.`, { title: 'Restaurar parámetros', ok: 'Restaurar' }).then(ok => {
           if (!ok) return;
           const def = U.clone(DEFAULT_SETTINGS);
           // El cuestionario y la verificación al ingresar no son parámetros de cálculo: se conservan
@@ -8928,18 +8932,18 @@ const SettingsView = {
   renderDepts() {
     const deps = Domain.departments();
     const emps = Store.inStudy('employees');
-    $('#deptBox').innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:nowrap"><input class="input" id="newDept" placeholder="Nombre de la nueva dependencia" aria-label="Nueva dependencia"><button class="btn btn-primary" data-action="addDept">${icon('plus')} Agregar</button></div>
-      <div class="table-wrap"><table class="table table-compact"><thead><tr><th>Dependencia</th><th class="num">Funcionarios</th><th></th></tr></thead><tbody>
-      ${deps.length ? deps.map(d => `<tr><td><input class="input input-sm" data-dept="${d.id}" value="${U.esc(d.name)}" aria-label="Nombre de la dependencia">${UI.demoBadge(d)}</td><td class="num">${emps.filter(e => e.departmentId === d.id).length}</td><td class="right"><button class="icon-btn danger" data-action="delDept" data-id="${d.id}" title="Eliminar">${icon('trash')}</button></td></tr>`).join('') : '<tr><td colspan="3" class="center muted">No hay dependencias registradas.</td></tr>'}
+    $('#deptBox').innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:nowrap"><input class="input" id="newDept" placeholder="Nombre de la nueva área" aria-label="Nueva área"><button class="btn btn-primary" data-action="addDept">${icon('plus')} Agregar</button></div>
+      <div class="table-wrap"><table class="table table-compact"><thead><tr><th>Área</th><th class="num">Funcionarios</th><th></th></tr></thead><tbody>
+      ${deps.length ? deps.map(d => `<tr><td><input class="input input-sm" data-dept="${d.id}" value="${U.esc(d.name)}" aria-label="Nombre del área">${UI.demoBadge(d)}</td><td class="num">${emps.filter(e => e.departmentId === d.id).length}</td><td class="right"><button class="icon-btn danger" data-action="delDept" data-id="${d.id}" title="Eliminar">${icon('trash')}</button></td></tr>`).join('') : '<tr><td colspan="3" class="center muted">No hay áreas registradas.</td></tr>'}
       </tbody></table></div>`;
     $('#newDept').onkeydown = e => { if (e.key === 'Enter') this.addDept(); };
   },
   addDept() {
     const i = $('#newDept');
-    if (!i.value.trim()) { UI.toast('Escriba el nombre de la dependencia.', 'warn'); return; }
+    if (!i.value.trim()) { UI.toast('Escriba el nombre del área.', 'warn'); return; }
     const existed = Domain.departments().some(d => U.normalize(d.name) === U.normalize(i.value));
     DeptService.create(i.value);
-    UI.toast(existed ? 'La dependencia ya existía' : 'Dependencia agregada');
+    UI.toast(existed ? 'El área ya existía' : 'Área agregada');
     this.renderDepts();
   },
   renameDept(input) {
@@ -8947,12 +8951,12 @@ const SettingsView = {
     if (!name) { UI.toast('El nombre no puede estar vacío.', 'warn'); this.renderDepts(); return; }
     Store.update('departments', input.dataset.dept, { name });
     Store.save();
-    UI.toast('Dependencia actualizada');
+    UI.toast('Área actualizada');
   },
   async deleteDept(id) {
     const n = Store.inStudy('employees').filter(e => e.departmentId === id).length;
     if (n) { UI.toast(`No se puede eliminar: tiene ${n} funcionario(s) asignado(s).`, 'warn'); return; }
-    if (!(await UI.confirm('¿Eliminar esta dependencia?', { title: 'Eliminar dependencia', ok: 'Eliminar', danger: true }))) return;
+    if (!(await UI.confirm('¿Eliminar esta área?', { title: 'Eliminar área', ok: 'Eliminar', danger: true }))) return;
     Store.remove('departments', id);
     Store.save();
     this.renderDepts();
@@ -8964,7 +8968,7 @@ const StudiesView = {
   render(view) {
     const active = Store.sid();
     const studies = [...Store.db.studies].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-    view.innerHTML = Views.pageHead('Administración', 'Gestión de contratos', 'Gestione los contratos de distintas instituciones. Cada contrato tiene su propia base de funcionarios, dependencias, formularios de medición y configuración.', `<button class="btn btn-primary" data-action="new">${icon('plus')} Nuevo contrato</button>`) + `
+    view.innerHTML = Views.pageHead('Administración', 'Gestión de contratos', 'Gestione los contratos de distintas instituciones. Cada contrato tiene su propia base de funcionarios, áreas, formularios de medición y configuración.', `<button class="btn btn-primary" data-action="new">${icon('plus')} Nuevo contrato</button>`) + `
       <div class="grid g3">${studies.map(st => {
         // Siempre debe quedar al menos un contrato: con uno solo, la papelera queda deshabilitada y explica por qué
         const solo = studies.length < 2, SOLO = 'No se puede eliminar: debe existir al menos un contrato. Cree otro primero.';
@@ -8973,7 +8977,7 @@ const StudiesView = {
         const sub = Store.inStudy('responses', st.id).filter(r => r.status === 'submitted').length;
         return `<div class="card study-card ${st.id === active ? 'active' : ''}">
           <div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><div class="eyebrow">${U.esc(st.institutionName)}</div><div class="card-title">${U.esc(st.name)}</div><div class="card-sub">${forms[0] ? 'Último formulario: ' + U.esc(forms[0].name) : 'Sin formularios'}</div></div>${st.id === active ? UI.badge('Activo', 'ok') : ''}</div>
-          <dl class="dl"><dt>Funcionarios</dt><dd>${emps}</dd><dt>Formularios</dt><dd>${forms.length}</dd><dt>Respuestas enviadas</dt><dd>${sub}</dd><dt>Dependencias</dt><dd>${Store.inStudy('departments', st.id).length}</dd><dt>Responsable</dt><dd>${U.esc(st.responsibleName || '—')}</dd></dl>
+          <dl class="dl"><dt>Funcionarios</dt><dd>${emps}</dd><dt>Formularios</dt><dd>${forms.length}</dd><dt>Respuestas enviadas</dt><dd>${sub}</dd><dt>Áreas</dt><dd>${Store.inStudy('departments', st.id).length}</dd><dt>Responsable</dt><dd>${U.esc(st.responsibleName || '—')}</dd></dl>
           <div class="row" style="margin-top:auto">${st.id !== active ? `<button class="btn btn-sm btn-primary" data-action="activate" data-id="${st.id}">Activar</button>` : `<a class="btn btn-sm" href="#/settings">Configurar</a>`}<button class="btn btn-sm" data-action="dup" data-id="${st.id}">${icon('copy')} Duplicar</button>${solo ? `<span class="tip" title="${SOLO}">` : ''}<button class="btn btn-sm btn-danger" data-action="del" data-id="${st.id}" ${solo ? 'disabled' : ''} title="${solo ? SOLO : 'Eliminar contrato'}">${icon('trash')}</button>${solo ? '</span>' : ''}</div>
         </div>`;
       }).join('')}</div>`;
@@ -9006,7 +9010,7 @@ const StudiesView = {
         <div class="field"><label for="cResp">Responsable del estudio</label><input class="input" id="cResp" name="responsibleName" value="${U.esc(src.responsibleName)}"></div>
         <div class="field"><label for="cRole">Profesión del responsable</label><input class="input" id="cRole" name="responsibleRole" value="${U.esc(src.responsibleRole)}"></div>
         <label class="switch full"><input type="checkbox" name="copySettings" ${base ? 'checked' : ''}> Copiar parámetros por defecto de «${U.esc(src.name)}»</label>
-        <label class="switch full"><input type="checkbox" name="copyDepts" ${base ? 'checked' : ''}> Copiar dependencias</label>
+        <label class="switch full"><input type="checkbox" name="copyDepts" ${base ? 'checked' : ''}> Copiar áreas</label>
         <label class="switch full"><input type="checkbox" name="copyEmployees"> Copiar la base de funcionarios (sin formularios ni respuestas)</label>
         <label class="switch full"><input type="checkbox" name="copyLogo" ${base ? 'checked' : ''}> Copiar logo</label>
       </div>`,
@@ -9093,11 +9097,11 @@ const Demo = {
         ] },
       { e: { fullName: 'Marta Ficticia León (DEMO)', documentId: 'DEMO-0003', dept: 'Talento Humano', position: 'Profesional universitario de talento humano', contractType: 'carrera', supervisor: 'Subgerente administrativo (ficticio)', seniority: 'mas_10', education: 'especializacion' },
         p: { perceivedLoad: 'adecuada', canFulfill: 'si', difficulties: '' },
-        f: { factors: ['falta_tecnologia'], explanation: 'El sistema de nómina no integra las novedades de las dependencias.' },
-        prop: 'Implementar un módulo en línea para el reporte de novedades de nómina por parte de los jefes de dependencia.',
+        f: { factors: ['falta_tecnologia'], explanation: 'El sistema de nómina no integra las novedades de las áreas.' },
+        prop: 'Implementar un módulo en línea para el reporte de novedades de nómina por parte de los jefes de área.',
         review: { status: 'validated', note: '' },
         acts: [
-          A('Liquidación de nómina mensual', 'Cálculo de devengados y deducciones, validación de novedades y generación de la nómina en el sistema.', 'administrativa', 'mensual', null, 1440, { min: 1200, max: 1800, src: 'registro_sistema', varb: 'volumen', f: ['falta_informacion'], dep: 'Jefes de dependencia (novedades)', to: 'Tesorería' }),
+          A('Liquidación de nómina mensual', 'Cálculo de devengados y deducciones, validación de novedades y generación de la nómina en el sistema.', 'administrativa', 'mensual', null, 1440, { min: 1200, max: 1800, src: 'registro_sistema', varb: 'volumen', f: ['falta_informacion'], dep: 'Jefes de área (novedades)', to: 'Tesorería' }),
           A('Elaboración de certificados laborales', 'Verificación de la historia laboral y expedición de certificados solicitados por funcionarios y exfuncionarios.', 'gestion_documental', 'varias_semana', 8, 20, { src: 'promedio_mediciones', varb: 'constante', to: 'Solicitante', med: 'correo' }),
           A('Afiliación de personal a seguridad social', 'Registro de nuevos funcionarios ante EPS, fondo de pensiones, ARL y caja de compensación.', 'administrativa', 'varias_semana', 3, 45, { varb: 'sistemas', f: ['fallas_sistema'], to: 'Entidades de seguridad social' }),
           A('Gestión de novedades de nómina (incapacidades y licencias)', 'Recepción, verificación y registro de incapacidades, licencias y permisos en el sistema de nómina.', 'administrativa', 'una_dia', null, 60, { varb: 'volumen', dep: 'Funcionarios y jefes inmediatos', to: 'Nómina' }),
@@ -9105,7 +9109,7 @@ const Demo = {
           A('Seguimiento al plan institucional de capacitación', 'Programación de capacitaciones, control de asistencia y evaluación de su ejecución.', 'administrativa', 'una_semana', null, 120, { f: ['falta_coordinacion'], dep: 'Líderes de proceso', to: 'Comité de capacitación', med: 'correo' }),
           A('Atención de consultas de funcionarios sobre nómina y prestaciones', 'Respuesta presencial y por correo a inquietudes de funcionarios sobre pagos, descuentos y prestaciones.', 'atencion_usuario', 'varias_dia', 6, 10, { f: ['interrupciones'], to: 'Funcionarios', med: 'correo' }),
           A('Informe trimestral de gestión de talento humano', 'Consolidación de indicadores de rotación, ausentismo y capacitación para la gerencia.', 'reporte', 'trimestral', null, 480, { varb: 'constante', to: 'Gerencia', med: 'correo' }),
-          A('Consolidación de la evaluación del desempeño', 'Recepción, revisión y consolidación de las evaluaciones de desempeño de todo el personal.', 'administrativa', 'semestral', null, 1200, { dep: 'Evaluadores de cada dependencia', to: 'Comisión de personal' }),
+          A('Consolidación de la evaluación del desempeño', 'Recepción, revisión y consolidación de las evaluaciones de desempeño de todo el personal.', 'administrativa', 'semestral', null, 1200, { dep: 'Evaluadores de cada área', to: 'Comisión de personal' }),
           A('Actualización de hojas de vida en SIGEP', 'Registro y actualización de la información de hojas de vida y bienes y rentas en el sistema SIGEP.', 'gestion_documental', 'varias_semana', 4, 30, { f: ['fallas_sistema'], to: 'Función Pública' }),
           A('Liquidación de prestaciones sociales', 'Cálculo de cesantías, primas, vacaciones y liquidaciones definitivas de funcionarios retirados.', 'administrativa', 'mensual', null, 480, { src: 'registro_sistema', to: 'Tesorería' }),
           A('Elaboración de actos administrativos de talento humano', 'Proyección de resoluciones de vacaciones, encargos, comisiones y demás situaciones administrativas.', 'administrativa', 'varias_semana', 3, 60, { to: 'Gerencia / Jurídica', med: 'fisico' }),
@@ -9207,7 +9211,7 @@ const Demo = {
         ] },
       { e: { fullName: 'Felipe Modelo Vargas (DEMO)', documentId: 'DEMO-0010', dept: 'Talento Humano', position: 'Auxiliar administrativo', contractType: 'provisional', supervisor: 'Profesional de talento humano (ficticio)', seniority: '1_3', education: 'tecnologo' },
         p: { perceivedLoad: 'adecuada', canFulfill: 'si', difficulties: '' },
-        f: { factors: ['coordinacion'], explanation: 'Las novedades de nómina llegan tarde desde algunas dependencias.' },
+        f: { factors: ['coordinacion'], explanation: 'Las novedades de nómina llegan tarde desde algunas áreas.' },
         prop: 'Definir un calendario de corte para el reporte de novedades.',
         review: null,
         acts: [
@@ -9215,7 +9219,7 @@ const Demo = {
           A('Radicación de correspondencia de talento humano', 'Recepción, radicación y distribución de la correspondencia que ingresa y sale del área.', 'gestion_documental', 'varias_dia', 10, 8, { varb: 'constante', to: 'Destinatarios internos' }),
           A('Apoyo en organización del archivo central', 'Organización de cajas y preparación de transferencias documentales del archivo central de la institución.', 'gestion_documental', 'una_semana', null, 240, { dep: 'Gestión documental', to: 'Archivo central', med: 'fisico', per: 'no', perExp: 'La actividad corresponde a gestión documental; fue asignada de forma temporal y se mantiene.', by: 'Coordinador(a) de gestión documental' }),
           A('Control de asistencia a capacitaciones', 'Elaboración de listados, registro de asistencia y archivo de evidencias de las capacitaciones.', 'administrativa', 'quincenal', null, 60, { varb: 'constante', to: 'Profesional de talento humano', med: 'fisico' }),
-          A('Digitación de novedades de nómina', 'Registro en el sistema de las novedades de nómina recibidas de las dependencias.', 'administrativa', 'una_semana', null, 120, { f: ['falta_coordinacion'], dep: 'Jefes de dependencia', to: 'Nómina' }),
+          A('Digitación de novedades de nómina', 'Registro en el sistema de las novedades de nómina recibidas de las áreas.', 'administrativa', 'una_semana', null, 120, { f: ['falta_coordinacion'], dep: 'Jefes de área', to: 'Nómina' }),
           A('Entrega de desprendibles de pago', 'Impresión, organización y entrega de los desprendibles de pago a los funcionarios.', 'administrativa', 'mensual', null, 180, { varb: 'constante', to: 'Funcionarios', med: 'fisico' }),
           A('Transcripción de actas del comité de convivencia', 'Transcripción de las actas de las sesiones del comité de convivencia laboral.', 'administrativa', 'mensual', null, 120, { to: 'Comité de convivencia', med: 'correo', per: 'parcial', perExp: 'Se realiza como apoyo a la secretaría del comité.', by: 'Profesional de talento humano' }),
           A('Atención de solicitudes de funcionarios en ventanilla', 'Recepción de solicitudes de certificados, vacaciones y permisos en la ventanilla del área.', 'atencion_usuario', 'varias_dia', 4, 10, { f: ['interrupciones'], to: 'Profesional de talento humano', med: 'fisico' }),
