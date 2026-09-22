@@ -394,6 +394,17 @@ tr.detail-row td{background:var(--surface-2);padding:14px 18px}
 .instruction{background:var(--primary-50);border:1px solid var(--primary-100);border-radius:10px;padding:14px 16px;font-size:13.5px;color:#0C4452;display:flex;gap:12px}
 .instruction svg{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
 .instruction p{margin:7px 0 0;line-height:1.5}
+.typed-head{margin:20px 0 10px;padding-top:16px;border-top:1px solid var(--border)}
+.em-head{display:flex;align-items:center;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.em-head .avatar{width:48px;height:48px;font-size:16px;border-radius:12px}
+.em-head-txt{flex:1;min-width:0}
+.em-name{font-weight:700;font-size:16px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.em-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+.em-sec{margin-top:20px}
+.em-sec-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);margin-bottom:10px}
+.em-sec-title svg{width:15px;height:15px;flex:0 0 auto}
+.em-assign{margin-top:18px;padding:11px 13px;border:1px solid var(--primary-100);background:var(--primary-50);border-radius:10px}
+@media (max-width:560px){.em-head .avatar{width:40px;height:40px;font-size:14px}.em-sec{margin-top:16px}}
 .act-card{border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow);overflow:hidden}
 .act-card+.act-card{margin-top:14px}
 .act-head{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface-2);border-bottom:1px solid var(--border)}
@@ -1681,11 +1692,13 @@ const DEFAULT_SETTINGS = {
   timeBasis: 'usual',
   includeEventual: false,
   alerts: { maxDailyMinutesPerActivity: 480, atypicalActivityPctOfCapacity: 50, highTotalLoadPct: 150, lowTotalLoadPct: 30, minActivities: 3, minDescriptionChars: 25 },
-  requiredFields: { documentId: true, contractType: true, supervisor: false, seniority: false, education: false },
+  requiredFields: { documentId: true, position: true, contractType: true, supervisor: false, seniority: false, education: false },
   /** Verificación al ingresar con la cédula (de cada formulario, en su cuestionario): foto y ubicación (off, optional, required) e IP pública. */
   access: { photo: 'off', location: 'off', ip: true },
-  /** ¿El funcionario debe elegir su área para poder enviar? Se configura en cada formulario. */
+  /** ¿El funcionario debe indicar su área para poder enviar? Se configura en cada formulario. */
   requireArea: true,
+  /** ¿Cómo la indica? false: la elige de las áreas del contrato · true: la escribe él mismo. */
+  areaFree: false,
   /** Firma del responsable en los informes: tamaño en % y desplazamiento en % de su propio ancho y alto. */
   signature: { scale: 100, dx: 0, dy: 0 },
 };
@@ -1903,7 +1916,7 @@ const Models = {
   assignment(d = {}) { return Models.base({ studyId: null, formId: null, employeeId: null, isDemo: false, ...d }); },
   department(d = {}) { return Models.base({ studyId: null, name: '', code: '', isDemo: false, ...d }); },
   employee(d = {}) {
-    return Models.base({ studyId: null, departmentId: '', fullName: '', documentId: '', position: '', contractType: '', supervisor: '', seniority: '', education: '', email: '', phone: '', status: 'active', notes: '', isDemo: false, ...d });
+    return Models.base({ studyId: null, departmentId: '', departmentText: '', fullName: '', documentId: '', position: '', contractType: '', supervisor: '', seniority: '', education: '', email: '', phone: '', status: 'active', notes: '', isDemo: false, ...d });
   },
   response(d = {}) {
     return Models.base({
@@ -1979,7 +1992,7 @@ const Store = {
       db.studies.forEach(st => { if (!isDefault(st.settings.access)) db.forms.filter(f => f.studyId === st.id && isDefault(f.settings.access)).forEach(f => { f.settings.access = { ...st.settings.access }; }); });
       db.meta.accessPerForm = true;
     }
-    db.employees.forEach(e => { ['email', 'phone', 'notes'].forEach(k => { if (e[k] == null) e[k] = ''; }); if (!e.status) e.status = 'active'; });
+    db.employees.forEach(e => { ['email', 'phone', 'notes', 'departmentText'].forEach(k => { if (e[k] == null) e[k] = ''; }); if (!e.status) e.status = 'active'; });
     db.responses.forEach(r => {
       r.perception = { perceivedLoad: '', canFulfill: '', difficulties: '', ...(r.perception || {}) };
       r.performance = { factors: [], otherText: '', explanation: '', ...(r.performance || {}) };
@@ -2131,7 +2144,7 @@ const Cloud = {
   COLUMNS: {
     studies: ['id', 'name', 'institution_name', 'period', 'start_date', 'end_date', 'responsible_name', 'responsible_role', 'responsible_id_type', 'responsible_id_number', 'responsible_id_place', 'responsible_birth_date', 'responsible_specialty', 'responsible_license', 'responsible_email', 'responsible_phone', 'responsible_city', 'logo_data_url', 'signature_data_url', 'consent_text', 'notes', 'settings', 'created_at', 'updated_at'],
     departments: ['id', 'study_id', 'name', 'code', 'is_demo', 'created_at', 'updated_at'],
-    employees: ['id', 'study_id', 'department_id', 'full_name', 'document_id', 'position', 'contract_type', 'supervisor', 'seniority', 'education', 'email', 'phone', 'status', 'notes', 'is_demo', 'created_at', 'updated_at'],
+    employees: ['id', 'study_id', 'department_id', 'department_text', 'full_name', 'document_id', 'position', 'contract_type', 'supervisor', 'seniority', 'education', 'email', 'phone', 'status', 'notes', 'is_demo', 'created_at', 'updated_at'],
     forms: ['id', 'study_id', 'name', 'request', 'requested_by', 'period', 'start_date', 'end_date', 'status', 'settings', 'appearance', 'is_demo', 'created_at', 'updated_at'],
     assignments: ['id', 'study_id', 'form_id', 'employee_id', 'snapshot', 'access_exempt', 'is_demo', 'created_at', 'updated_at'],
     responses: ['id', 'study_id', 'form_id', 'employee_id', 'status', 'submitted_at', 'version', 'perception', 'performance', 'proposals', 'declaration_accepted', 'acknowledged_alerts', 'calculated_snapshot', 'history', 'edit_unlocked', 'edit_unlocked_at', 'edit_draft', 'is_demo', 'created_at', 'updated_at'],
@@ -2153,7 +2166,7 @@ const Cloud = {
   REQUIRED: {
     studies: { name: '', institution_name: '', settings: {} },
     departments: { name: '', is_demo: false },
-    employees: { full_name: '', status: 'active', is_demo: false },
+    employees: { full_name: '', department_text: '', status: 'active', is_demo: false },
     forms: { name: '', status: 'open', settings: {}, is_demo: false },
     assignments: { access_exempt: false, is_demo: false },
     responses: { status: 'draft', version: 0, perception: {}, performance: {}, declaration_accepted: false, acknowledged_alerts: [], history: [], edit_unlocked: false, is_demo: false },
@@ -2330,6 +2343,8 @@ const Cloud = {
   },
   async sync() {
     if (!this.enabled || !this.user) return;
+    // Pantalla del funcionario: en memoria solo están sus datos, así que aquí nunca se guarda ni se borra nada
+    if (typeof Remote !== 'undefined' && Remote.active) return;
     if (this.loading) { this.schedule(500); return; }   // se está cargando todo de la nube: se guarda al terminar
     if (this.running) { this.again = true; return; }
     this.running = true;
@@ -2718,7 +2733,8 @@ const Remote = {
     const db = { meta: { activeStudyId: study.id, activeForms: { [study.id]: form.id }, user: { name: 'Funcionario' } }, studies: [study], forms: [form], departments: [], employees: [], assignments: [], responses: [], activities: [], validations: [], events: [] };
     if (s) {
       db.departments = (s.departments || []).map(x => Models.department({ id: x.id, studyId: study.id, name: x.name }));
-      const emp = Object.assign(Models.employee({ studyId: study.id }), s.employee, { departmentId: s.employee.departmentId || '' });
+      const emp = Object.assign(Models.employee({ studyId: study.id }), s.employee, { departmentId: s.employee.departmentId || '', departmentText: s.employee.departmentText || '' });
+      this._area = emp.departmentText;
       db.employees = [emp];
       db.assignments = [Models.assignment({ studyId: study.id, formId: form.id, employeeId: emp.id })];
       if (s.response) {
@@ -2754,8 +2770,18 @@ const Remote = {
     };
   },
   /** Guarda el avance (borrador, o corrección en curso si ya había enviado). Devuelve true si quedó guardado. */
+  /** Área escrita por el funcionario: queda guardada tal cual. El responsable decide después si la agrega a sus áreas. */
+  async area(st) {
+    const name = String(st.employee.departmentText || '').trim();
+    if (name === String(this._area || '')) return;
+    const d = await this.rpc('worker_area_text', { p_token: this.token(), p_name: name });
+    if (!d || d.result !== 'ok') return;
+    this._area = d.departmentText;
+    st.employee.departmentText = d.departmentText;
+  },
   async save(st) {
     try {
+      await this.area(st);
       const d = await this.rpc('worker_save', { p_token: this.token(), ...this.payload(st) });
       if (d && d.result === 'ok') { this.afterWrite(st, d, false); return true; }
       this.ended(d && d.result);
@@ -2765,6 +2791,7 @@ const Remote = {
   /** Envía el formulario. Devuelve true solo si el servidor confirmó el envío. */
   async submit(st, warnings, calc, hash) {
     try {
+      await this.area(st);
       const d = await this.rpc('worker_submit', {
         p_token: this.token(), ...this.payload(st), p_hash: hash || '',
         p_warnings: warnings.map(w => ({ code: w.code, title: w.title, msg: w.msg, activityId: w.activityId || null })),
@@ -2786,7 +2813,7 @@ const Remote = {
     else if (!d.editDraft && r.status !== 'submitted') r.status = 'draft';
     Store.db.activities = st.activities.filter(a => !Validate.isBlankActivity(a)).map((a, i) => ({ ...U.clone(a), order: i, responseId: r.id, employeeId: st.employee.id }));
     const emp = Store.get('employees', st.employee.id);
-    if (emp) ['departmentId', 'position', 'contractType', 'supervisor', 'seniority', 'education'].forEach(k => { emp[k] = st.employee[k]; });
+    if (emp) ['departmentId', 'departmentText', 'position', 'contractType', 'supervisor', 'seniority', 'education'].forEach(k => { emp[k] = st.employee[k]; });
   },
   /** La sesión terminó en el servidor (venció, se cerró el formulario o ya no puede modificar). */
   ended(result) {
@@ -2960,7 +2987,7 @@ const Calc = {
    ===================================================================== */
 const Validate = {
   GENERIC: new Set(['varios', 'varias', 'otras', 'otros', 'otra', 'otro', 'actividades', 'actividad', 'apoyo', 'apoyar', 'informes', 'informe', 'reportes', 'reporte', 'funciones', 'tareas', 'tarea', 'labores', 'labor', 'jornada', 'jornadas', 'diarias', 'diario', 'diaria', 'diarios', 'semanales', 'semanal', 'mensuales', 'mensual', 'general', 'generales', 'administrativas', 'administrativo', 'administrativa', 'administrativos', 'asistenciales', 'asistencial', 'realizo', 'realizar', 'hacer', 'hago', 'elaborar', 'elaboro', 'gestion', 'gestiones', 'trabajo', 'oficina', 'cosas', 'demas', 'etc', 'pendientes', 'todo', 'propias', 'propios', 'cargo', 'area']),
-  ID_FIELDS: [['documentId', 'Documento de identificación'], ['contractType', 'Tipo de vinculación'], ['supervisor', 'Jefe inmediato'], ['seniority', 'Antigüedad en la entidad'], ['education', 'Formación académica']],
+  ID_FIELDS: [['documentId', 'Documento de identificación'], ['position', 'Cargo'], ['contractType', 'Tipo de vinculación'], ['supervisor', 'Jefe inmediato'], ['seniority', 'Antigüedad en la entidad'], ['education', 'Formación académica']],
 
   isBlankActivity(a) {
     return !a.name.trim() && !a.description.trim() && !a.type && !a.frequency && U.num(a.timeUsual) === null && !a.timeSource && !a.pertinence;
@@ -3051,9 +3078,20 @@ const Validate = {
     const req = (field, label) => errors.push({ step: 1, field, msg: `Complete el campo «${label}».` });
     if (!emp.fullName.trim()) req('employee.fullName', 'Nombre completo');
     // El área solo se exige cuando el contrato tiene áreas registradas
-    if (!emp.departmentId && s.requireArea !== false && Store.inStudy('departments', emp.studyId).length) req('employee.departmentId', 'Área');
-    if (!emp.position.trim()) req('employee.position', 'Cargo');
+    if (s.requireArea !== false && !emp.departmentId) {
+      if (s.areaFree === true) { if (!String(emp.departmentText || '').trim()) req('employee.departmentText', 'Área'); }
+      else if (Store.inStudy('departments', emp.studyId).length) req('employee.departmentId', 'Área');
+    }
     this.ID_FIELDS.forEach(([k, label]) => { if (s.requiredFields[k] && !String(emp[k] || '').trim()) req('employee.' + k, label); });
+    return errors;
+  },
+
+  /** Ficha del funcionario en la base (Registrar/Editar): solo se exige lo que lo identifica. */
+  record(emp, s) {
+    const errors = [];
+    const req = (field, label) => errors.push({ field, msg: `Complete el campo «${label}».` });
+    if (!String(emp.fullName || '').trim()) req('fullName', 'Nombre completo');
+    if (s.requiredFields.documentId && !String(emp.documentId || '').trim()) req('documentId', 'Documento de identificación');
     return errors;
   },
 
@@ -3139,6 +3177,19 @@ const Validate = {
 const Domain = {
   departments(sid) { return Store.inStudy('departments', sid).sort((a, b) => a.name.localeCompare(b.name, 'es')); },
   deptName(id) { const d = id ? Store.get('departments', id) : null; return d ? d.name : 'Sin área'; },
+  /** Lo que escribieron los funcionarios como su área, agrupado (nada se agrega al contrato hasta que el responsable decida). */
+  typedAreas(studyId = Store.sid()) {
+    const map = new Map();
+    Store.inStudy('employees', studyId).forEach(e => {
+      const t = String(e.departmentText || '').trim(), k = U.normalize(t);
+      if (!k) return;
+      if (!map.has(k)) map.set(k, { key: k, name: t, employees: [] });
+      map.get(k).employees.push(e);
+    });
+    const deps = Store.inStudy('departments', studyId);
+    return [...map.values()].map(g => ({ ...g, match: deps.find(d => U.normalize(d.name) === g.key) || null }))
+      .sort((a, b) => b.employees.length - a.employees.length || a.name.localeCompare(b.name, 'es'));
+  },
   responseOf(employeeId, formId = Store.fid()) { return formId ? Store.db.responses.find(r => r.employeeId === employeeId && r.formId === formId) || null : null; },
   activitiesOf(responseId) { return Store.db.activities.filter(a => a.responseId === responseId).sort((a, b) => a.order - b.order); },
   validationsOf(responseId) { return Store.db.validations.filter(v => v.responseId === responseId).sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1)); },
@@ -4968,24 +5019,45 @@ const EmployeeModal = {
     const s = Settings.current();
     const e = emp ? U.clone(emp) : Models.employee({ studyId: Store.sid() });
     const rf = s.requiredFields;
-    const req = k => rf[k] ? '<span class="req">*</span>' : '';
+    // En la ficha solo se exige el documento; los demás datos los completa el funcionario en su formulario
+    const req = k => (k === 'documentId' && rf[k] ? '<span class="req">*</span>' : '');
     const form = Store.form();
     const canAssign = !emp && !!opts.assignTo && form && form.id === opts.assignTo && form.status !== 'closed';
-    const body = `<div class="form-grid">
+    const estado = CATALOG.employeeStatus[e.status] || CATALOG.employeeStatus.active;
+    const body = `<div class="em-form">
+      <div class="em-head">
+        <div class="avatar">${U.esc(U.initials(emp ? e.fullName : '+'))}</div>
+        <div class="em-head-txt">
+          <div class="em-name">${U.esc(emp ? e.fullName : 'Nuevo funcionario')}</div>
+          <div class="em-meta">${emp ? `${U.esc(e.documentId || 'Sin documento')} · ${U.esc(Domain.deptName(e.departmentId))} · Registrado el ${U.fmtDate(e.createdAt)}` : `Solo el nombre${rf.documentId ? ' y el documento' : ''} son obligatorios; lo demás se puede completar después.`}</div>
+        </div>
+        ${emp ? UI.badge(estado.label, estado.tone) : ''}
+      </div>
+      <div class="em-sec"><div class="em-sec-title">${icon('idCard')} Identificación</div><div class="form-grid">
       <div class="field full"><label for="emName">Nombre completo<span class="req">*</span></label><input class="input" id="emName" name="fullName" value="${U.esc(e.fullName)}"></div>
       <div class="field"><label for="emDoc">Documento de identificación${req('documentId')}</label><input class="input" id="emDoc" name="documentId" value="${U.esc(e.documentId)}"></div>
-      <div class="field"><label for="emDept">Área</label><div class="row" style="flex-wrap:nowrap"><select class="select" id="emDept" name="departmentId">${UI.options(Domain.departments().map(d => [d.id, d.name]), e.departmentId)}</select><button type="button" class="btn" data-newdept title="Nueva área">${icon('plus')}</button></div></div>
-      <div class="field"><label for="emPos">Cargo<span class="req">*</span></label><input class="input" id="emPos" name="position" list="positionsList" value="${U.esc(e.position)}"><datalist id="positionsList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist></div>
+      </div></div>
+      <div class="em-sec"><div class="em-sec-title">${icon('building')} Ubicación laboral</div><div class="form-grid">
+      <div class="field"><label for="emDept">Área</label><div class="row" style="flex-wrap:nowrap"><select class="select" id="emDept" name="departmentId">${UI.options(Domain.departments().map(d => [d.id, d.name]), e.departmentId)}</select><button type="button" class="btn" data-newdept title="Nueva área">${icon('plus')}</button></div>${String(e.departmentText || '').trim() ? `<span class="hint">Escribió en su formulario: «${U.esc(e.departmentText)}». Puede asignarla aquí o desde Configuración → Áreas.</span>` : ''}</div>
+      <div class="field"><label for="emPos">Cargo</label><input class="input" id="emPos" name="position" list="positionsList" value="${U.esc(e.position)}"><datalist id="positionsList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist></div>
       <div class="field"><label for="emCt">Tipo de vinculación${req('contractType')}</label><select class="select" id="emCt" name="contractType">${UI.options(CATALOG.contractTypes, e.contractType)}</select></div>
       <div class="field"><label for="emSup">Jefe inmediato${req('supervisor')}</label><input class="input" id="emSup" name="supervisor" value="${U.esc(e.supervisor)}"></div>
+      </div></div>
+      <div class="em-sec"><div class="em-sec-title">${icon('users')} Perfil</div><div class="form-grid">
       <div class="field"><label for="emSen">Antigüedad en la entidad${req('seniority')}</label><select class="select" id="emSen" name="seniority">${UI.options(CATALOG.seniority, e.seniority)}</select></div>
       <div class="field"><label for="emEdu">Formación académica${req('education')}</label><select class="select" id="emEdu" name="education">${UI.options(CATALOG.education, e.education)}</select></div>
+      </div></div>
+      <div class="em-sec"><div class="em-sec-title">${icon('globe')} Contacto</div><div class="form-grid">
       <div class="field"><label for="emEmail">Correo electrónico</label><input class="input" id="emEmail" type="email" name="email" value="${U.esc(e.email)}"></div>
       <div class="field"><label for="emPhone">Teléfono</label><input class="input" id="emPhone" name="phone" value="${U.esc(e.phone)}"></div>
+      </div></div>
+      <div class="em-sec"><div class="em-sec-title">${icon('lock')} Solo para usted</div><div class="form-grid">
       <div class="field"><label for="emStatus">Estado</label><select class="select" id="emStatus" name="status">${UI.options(Object.entries(CATALOG.employeeStatus).map(([k, v]) => [k, v.label]), e.status, null)}</select></div>
       <div class="field full"><label for="emNotes">Observaciones</label><textarea class="textarea" id="emNotes" name="notes" rows="2">${U.esc(e.notes)}</textarea></div>
-      ${canAssign ? `<label class="check full"><input type="checkbox" id="emAssign" ${opts.assignTo ? 'checked' : ''}><span>Agregar como participante del formulario activo «${U.esc(form.name)}»</span></label>` : ''}
-    </div><div id="empErr" style="margin-top:12px"></div>`;
+      ${canAssign ? `<label class="check em-assign"><input type="checkbox" id="emAssign" ${opts.assignTo ? 'checked' : ''}><span>Agregar como participante del formulario activo «${U.esc(form.name)}»</span></label>` : ''}
+      </div></div>
+      <p class="small muted" style="margin:16px 0 0">Aquí solo son obligatorios el nombre${rf.documentId ? ' y el documento' : ''}. Los demás datos los puede completar el propio funcionario cuando diligencie su formulario.</p>
+      <div id="empErr" style="margin-top:12px"></div></div>`;
     UI.modal({
       title: emp ? 'Editar funcionario' : 'Registrar funcionario', body, size: 'lg',
       onMount: back => {
@@ -4999,7 +5071,7 @@ const EmployeeModal = {
       actions: [{ label: 'Cancelar', value: null }, {
         label: emp ? 'Guardar cambios' : 'Registrar', cls: 'btn-primary', onClick: (close, back) => {
           $$('[name]', back).forEach(i => { e[i.name] = i.value.trim(); });
-          const errs = Validate.identification(e, s).map(x => x.msg);
+          const errs = Validate.record(e, s).map(x => x.msg);
           const docK = Access.key(e.documentId);
           const dup = docK ? Store.inStudy('employees').find(x => x.id !== e.id && Access.key(x.documentId) === docK) : null;
           if (dup) errs.push(`Ya existe un funcionario con el documento ${U.esc(e.documentId)}: ${U.esc(dup.fullName)}.`);
@@ -5363,6 +5435,7 @@ const FormsView = {
     const qCfg = () => (qs.level === 'personalizado' ? { level: 'personalizado', fields: { ...qs.fields } } : { level: qs.level });
     // ¿Se le exige el área al funcionario? Es de cada formulario
     let reqArea = Settings.merge(f.settings).requireArea !== false;
+    let areaFree = Settings.merge(f.settings).areaFree === true;
     // Verificación al ingresar (foto, ubicación, IP): es del formulario y funciona con cualquier nivel del cuestionario
     const acc = { ...Settings.merge(f.settings).access };
     const aCfg = () => ({ ...acc });
@@ -5380,9 +5453,10 @@ const FormsView = {
         </div>
         <div class="q-verify">
           <div class="q-group-title">Datos del funcionario</div>
-          <div class="q-group-sub">Lo que ya está en su ficha se le muestra fijo; esto decide qué debe completar si le falta.</div>
+          <div class="q-group-sub">Lo que ya está en su ficha se le muestra fijo; esto decide qué debe completar si le falta. Cargo, vinculación, jefe, antigüedad y formación se marcan obligatorios en <a href="#/settings">Configuración → Campos de identificación obligatorios</a>.</div>
           <div class="q-verify-grid">
             <label class="q-vitem"><span class="acc-ico">${icon('users')}</span><span><b>Área</b><span class="q-impact">Si se exige, quien no la tenga registrada debe elegirla para poder enviar. Si no, sus respuestas quedan en «Sin área» en el análisis y el informe.</span></span><select class="select" data-change="reqArea" aria-label="¿El área es obligatoria?"><option value="1">Obligatoria</option><option value="0">Opcional</option></select></label>
+            <label class="q-vitem"><span class="acc-ico">${icon('edit')}</span><span><b>Cómo indica el área</b><span class="q-impact">Con la lista elige entre las áreas que usted tiene guardadas en Configuración. Si la escribe, pone la suya con sus palabras: cuando coincide con un área que ya existe se agrupa con ella y, si no, se crea y usted la ve en Configuración → Áreas.</span></span><select class="select" data-change="areaFree" aria-label="¿Cómo indica el área el funcionario?"><option value="0">La elige de la lista</option><option value="1">La escribe el funcionario</option></select></label>
           </div>
         </div>
         <div class="q-verify">
@@ -5441,6 +5515,7 @@ const FormsView = {
       $$('[name=qLevel]', view).forEach(r => { r.checked = r.value === qs.level; });
       $$('[data-q]', view).forEach(c => { c.checked = qs.fields[c.dataset.q] !== false; });
       const ra = $('[data-change="reqArea"]', view); if (ra) ra.value = reqArea ? '1' : '0';
+      const af = $('[data-change="areaFree"]', view); if (af) af.value = areaFree ? '1' : '0';
       const meta = fields => `${Questionnaire.plan(fields).steps.length} pasos · ${U.plural(Questionnaire.perActivity(fields), 'pregunta', 'preguntas')} por actividad`;
       $$('[data-qmeta]', view).forEach(el => { const k = el.dataset.qmeta; el.textContent = meta(k === 'personalizado' ? qs.fields : Questionnaire.fieldsOf(k)); });
       const pl = Questionnaire.plan(qs.fields);
@@ -5456,6 +5531,7 @@ const FormsView = {
         qField: el => { qs.fields = { ...qs.fields, [el.dataset.q]: el.checked }; qs.level = 'personalizado'; syncQ(); },
         acc: el => { acc[el.dataset.k] = el.dataset.k === 'ip' ? el.value === '1' : el.value; },
         reqArea: el => { reqArea = el.value === '1'; },
+        areaFree: el => { areaFree = el.value === '1'; },
       },
       click: {
         save: () => {
@@ -5466,7 +5542,7 @@ const FormsView = {
           Object.assign(f, { name, period: $('#fPeriod').value.trim(), status: $('#fStatus').value, startDate: start, endDate: end, requestedBy: $('#fBy').value.trim(), request: $('#fReq').value.trim() });
           if (existing) {
             const wasClosed = existing.status === 'closed';
-            Store.update('forms', existing.id, { name: f.name, period: f.period, status: f.status, startDate: f.startDate, endDate: f.endDate, requestedBy: f.requestedBy, request: f.request, settings: { ...Settings.merge(existing.settings), questionnaire: qCfg(), access: aCfg(), requireArea: reqArea } });
+            Store.update('forms', existing.id, { name: f.name, period: f.period, status: f.status, startDate: f.startDate, endDate: f.endDate, requestedBy: f.requestedBy, request: f.request, settings: { ...Settings.merge(existing.settings), questionnaire: qCfg(), access: aCfg(), requireArea: reqArea, areaFree } });
             if (!wasClosed && f.status === 'closed') Domain.freeze(existing.id);
             Store.save();
             UI.toast('Formulario actualizado');
@@ -5482,6 +5558,7 @@ const FormsView = {
           f.settings.questionnaire = qCfg();
           f.settings.access = aCfg();
           f.settings.requireArea = reqArea;
+          f.settings.areaFree = areaFree;
           Store.insert('forms', f);
           const ids = mode === 'active' ? activeEmps.map(e => e.id) : mode === 'pick' ? [...selected] : [];
           const n = Domain.assign(f.id, ids);
@@ -5504,7 +5581,7 @@ const FormsView = {
         const start = $('#fStart').value, end = $('#fEnd').value;
         if (start && end && end < start) return 'La fecha de cierre no puede ser anterior a la de inicio; ese cambio no se guardó.';
         const cur = Store.get('forms', existing.id), wasClosed = cur.status === 'closed';
-        Store.update('forms', existing.id, { name, period: $('#fPeriod').value.trim(), status: $('#fStatus').value, startDate: start, endDate: end, requestedBy: $('#fBy').value.trim(), request: $('#fReq').value.trim(), settings: { ...Settings.merge(cur.settings), questionnaire: qCfg(), access: aCfg(), requireArea: reqArea } });
+        Store.update('forms', existing.id, { name, period: $('#fPeriod').value.trim(), status: $('#fStatus').value, startDate: start, endDate: end, requestedBy: $('#fBy').value.trim(), request: $('#fReq').value.trim(), settings: { ...Settings.merge(cur.settings), questionnaire: qCfg(), access: aCfg(), requireArea: reqArea, areaFree } });
         if (!wasClosed && cur.status === 'closed') Domain.freeze(existing.id);
         Store.save();
         App.refreshShell();
@@ -6469,12 +6546,15 @@ const FormView = {
         ${this.fld('Número de cédula', lockDoc ? ro(e.documentId) : `<input class="input" data-bind="employee.documentId" value="${U.esc(e.documentId)}" autocomplete="off">`, { ...opt('documentId'), hint: lockDoc ? (st.kiosk ? 'Verificada al ingresar.' : 'Tomada de la base de funcionarios.') : st.isNew ? 'Escríbala primero: si el funcionario ya está registrado se cargan sus datos.' : '' })}
         ${this.fld('Nombre completo', lockName ? ro(e.fullName) : `<input class="input" data-bind="employee.fullName" value="${U.esc(e.fullName)}" autocomplete="off">`, { req: true, err: 'employee.fullName', hint: lockName ? 'Si su nombre o su cédula tienen un error, comuníquese con el responsable del estudio.' : '' })}
         ${(() => {
-          const reqArea = !!depts.length && this.settings().requireArea !== false;
+          const sx = this.settings(), free = sx.areaFree === true;
+          const reqArea = (free || !!depts.length) && sx.requireArea !== false;
           if (lock('departmentId')) return this.fld('Área', ro(Domain.deptName(e.departmentId)), { req: reqArea });
+          // El formulario puede pedir que la escriba con sus palabras (las que ya existen se sugieren)
+          if (free) return this.fld('Área', `<input class="input" data-bind="employee.departmentText" value="${U.esc(e.departmentText || '')}" maxlength="80" autocomplete="off" list="deptList"><datalist id="deptList">${depts.map(d => `<option value="${U.esc(d.name)}">`).join('')}</datalist>`, { req: reqArea, err: 'employee.departmentText', hint: `Escriba el área o servicio donde trabaja.${reqArea ? '' : ' Opcional.'} Ej.: Facturación, Urgencias, Laboratorio.` });
           if (!depts.length && this.st.remote) return '';
           return this.fld('Área', `<select class="select" data-bind="employee.departmentId" id="deptSelect">${UI.options(depts.map(d => [d.id, d.name]), e.departmentId)}${this.st.remote ? '' : '<option value="__new__">+ Crear nueva área…</option>'}</select>`, { req: reqArea, err: 'employee.departmentId', hint: reqArea ? 'Es el área o servicio donde trabaja. Ej.: Facturación, Urgencias, Laboratorio.' : 'Opcional. Es el área o servicio donde trabaja. Ej.: Facturación, Urgencias, Laboratorio.' });
         })()}
-        ${lock('position') ? this.fld('Cargo', ro(e.position), { req: true }) : this.fld('Cargo', `<input class="input" data-bind="employee.position" value="${U.esc(e.position)}" list="posList"><datalist id="posList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist>`, { req: true, err: 'employee.position' })}
+        ${lock('position') ? this.fld('Cargo', ro(e.position), { req: !!rf.position }) : this.fld('Cargo', `<input class="input" data-bind="employee.position" value="${U.esc(e.position)}" list="posList"><datalist id="posList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist>`, opt('position'))}
         ${lock('contractType') ? this.fld('Tipo de vinculación', ro(CATALOG.label('contractTypes', e.contractType)), { req: !!rf.contractType }) : this.fld('Tipo de vinculación', `<select class="select" data-bind="employee.contractType">${UI.options(CATALOG.contractTypes, e.contractType)}</select>`, opt('contractType'))}
         ${lock('supervisor') ? this.fld('Jefe inmediato', ro(e.supervisor), { req: !!rf.supervisor }) : this.fld('Jefe inmediato', `<input class="input" data-bind="employee.supervisor" value="${U.esc(e.supervisor)}">`, opt('supervisor'))}
         ${lock('seniority') ? this.fld('Antigüedad en la entidad', ro(CATALOG.label('seniority', e.seniority)), { req: !!rf.seniority }) : this.fld('Antigüedad en la entidad', `<select class="select" data-bind="employee.seniority">${UI.options(CATALOG.seniority, e.seniority)}</select>`, opt('seniority'))}
@@ -8833,7 +8913,7 @@ const SettingsView = {
             ${num('p.alerts.minActivities', 'Mínimo de actividades esperado', '', '1')}
           </div>`)}
           ${form ? `<label class="check card card-pad" style="margin:0"><input type="checkbox" data-k="alsoDefault"><span>Guardar también estos parámetros como <b>valores por defecto del contrato</b> para los nuevos formularios</span></label>` : ''}
-          ${card('sReq', 'Campos de identificación obligatorios', 'Aplican a todo el contrato. Nombre, área y cargo son siempre obligatorios', `<div class="grid g3">${Validate.ID_FIELDS.map(([k, l]) => `<label class="switch"><input type="checkbox" data-k="study.settings.requiredFields.${k}" ${d.study.settings.requiredFields[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>`)}
+          ${card('sReq', 'Campos de identificación obligatorios', 'Del paso 1 del formulario: marque lo que el funcionario debe completar para poder enviar. Aplican a todo el contrato. El nombre siempre es obligatorio y el área se configura en cada formulario.', `<div class="grid g3">${Validate.ID_FIELDS.map(([k, l]) => `<label class="switch"><input type="checkbox" data-k="study.settings.requiredFields.${k}" ${d.study.settings.requiredFields[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>`)}
           <div class="card" id="sDept"><div class="card-head"><div><div class="card-title">Áreas del contrato</div><div class="card-sub">Ej.: Facturación, Urgencias, Laboratorio, Talento Humano. Los funcionarios eligen la suya en el formulario; los cambios se guardan inmediatamente</div></div></div><div class="card-body" id="deptBox"></div></div>
           <div class="row" style="justify-content:flex-end"><button class="btn btn-ghost" data-action="defaults">Restaurar parámetros por defecto</button><button class="btn btn-primary btn-lg" data-action="save">${icon('check')} Guardar configuración</button></div>
         </div>
@@ -8889,7 +8969,7 @@ const SettingsView = {
           if (!ok) return;
           const def = U.clone(DEFAULT_SETTINGS);
           // El cuestionario y la verificación al ingresar no son parámetros de cálculo: se conservan
-          if (form) Store.update('forms', form.id, { settings: { ...def, questionnaire: form.settings.questionnaire, access: Settings.merge(form.settings).access, requireArea: Settings.merge(form.settings).requireArea } });
+          if (form) Store.update('forms', form.id, { settings: { ...def, questionnaire: form.settings.questionnaire, access: Settings.merge(form.settings).access, requireArea: Settings.merge(form.settings).requireArea, areaFree: Settings.merge(form.settings).areaFree } });
           else { def.requiredFields = study.settings.requiredFields; def.access = Settings.merge(study.settings).access; study.settings = def; Store.update('studies', study.id, {}); }
           Store.save(); UI.toast('Parámetros restaurados'); this.render(view);
         });
@@ -8897,6 +8977,8 @@ const SettingsView = {
       else if (a === 'sigReset') { this.setSig({ scale: 100, dx: 0, dy: 0 }); UI.toast('Firma restablecida (pendiente guardar configuración)'); }
       else if (a === 'addDept') this.addDept();
       else if (a === 'delDept') this.deleteDept(t.dataset.id);
+      else if (a === 'useArea') this.useTypedArea(t.dataset.key);
+      else if (a === 'dropArea') this.dropTypedArea(t.dataset.key);
     };
   },
   /** Edad calculada y vista previa del bloque de firma del responsable. */
@@ -9041,7 +9123,18 @@ const SettingsView = {
     $('#deptBox').innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:nowrap"><input class="input" id="newDept" placeholder="Nombre de la nueva área" aria-label="Nueva área"><button class="btn btn-primary" data-action="addDept">${icon('plus')} Agregar</button></div>
       <div class="table-wrap"><table class="table table-compact"><thead><tr><th>Área</th><th class="num">Funcionarios</th><th></th></tr></thead><tbody>
       ${deps.length ? deps.map(d => `<tr><td><input class="input input-sm" data-dept="${d.id}" value="${U.esc(d.name)}" aria-label="Nombre del área">${UI.demoBadge(d)}</td><td class="num">${emps.filter(e => e.departmentId === d.id).length}</td><td class="right"><button class="icon-btn danger" data-action="delDept" data-id="${d.id}" title="Eliminar">${icon('trash')}</button></td></tr>`).join('') : '<tr><td colspan="3" class="center muted">No hay áreas registradas.</td></tr>'}
-      </tbody></table></div>`;
+      </tbody></table></div>
+      ${(() => {
+        const typed = Domain.typedAreas();
+        if (!typed.length) return '';
+        return `<div class="typed-head"><div class="card-title">Áreas que escribieron los funcionarios (${typed.length})</div>
+          <div class="card-sub">Nada se agrega a sus áreas hasta que usted lo decida. Al agregar o asignar, esos funcionarios quedan con esa área y el texto desaparece de esta lista.</div></div>
+          <div class="table-wrap"><table class="table table-compact"><thead><tr><th>Lo que escribieron</th><th class="num">Funcionarios</th><th></th></tr></thead><tbody>
+          ${typed.map(g => `<tr><td><b>${U.esc(g.name)}</b>${g.match ? `<div class="small muted">Es la misma que su área «${U.esc(g.match.name)}»</div>` : ''}<div class="small muted">${U.esc(g.employees.slice(0, 4).map(e => e.fullName).join(', '))}${g.employees.length > 4 ? ` y ${g.employees.length - 4} más` : ''}</div></td>
+            <td class="num">${g.employees.length}</td>
+            <td class="right"><div class="row" style="justify-content:flex-end;gap:6px;flex-wrap:nowrap"><button class="btn btn-sm btn-primary" data-action="useArea" data-key="${U.esc(g.key)}">${g.match ? `Asignar a «${U.esc(g.match.name)}»` : 'Agregar como área'}</button><button class="btn btn-sm btn-ghost" data-action="dropArea" data-key="${U.esc(g.key)}" title="Quitar lo que escribieron, sin agregar nada">Descartar</button></div></td></tr>`).join('')}
+          </tbody></table></div>`;
+      })()}`;
     $('#newDept').onkeydown = e => { if (e.key === 'Enter') this.addDept(); };
   },
   addDept() {
@@ -9058,6 +9151,25 @@ const SettingsView = {
     Store.update('departments', input.dataset.dept, { name });
     Store.save();
     UI.toast('Área actualizada');
+  },
+  /** Agrega el área que escribieron (o la asigna a la que ya existe) y se la pone a esos funcionarios. */
+  useTypedArea(key) {
+    const g = Domain.typedAreas().find(x => x.key === key);
+    if (!g) return;
+    const d = g.match || DeptService.create(g.name, {}, false);
+    g.employees.forEach(e => Store.update('employees', e.id, { departmentId: d.id, departmentText: '' }));
+    Store.save();
+    UI.toast(`${U.plural(g.employees.length, 'funcionario quedó', 'funcionarios quedaron')} en «${d.name}»`);
+    this.renderDepts();
+  },
+  /** Descarta lo que escribieron: no se agrega nada y esos funcionarios quedan sin área. */
+  async dropTypedArea(key) {
+    const g = Domain.typedAreas().find(x => x.key === key);
+    if (!g) return;
+    if (!(await UI.confirm(`Se quitará «${U.esc(g.name)}» de ${U.plural(g.employees.length, 'funcionario', 'funcionarios')}. No se agrega ningún área y ellos quedan sin área hasta que usted se la asigne.`, { title: 'Descartar lo que escribieron', ok: 'Descartar' }))) return;
+    g.employees.forEach(e => Store.update('employees', e.id, { departmentText: '' }));
+    Store.save();
+    this.renderDepts();
   },
   async deleteDept(id) {
     const n = Store.inStudy('employees').filter(e => e.departmentId === id).length;
