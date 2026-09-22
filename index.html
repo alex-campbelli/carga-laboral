@@ -533,13 +533,19 @@ tr.row-selected td{background:#F1F8FA}
 .rp .rp-cover-meta{font-size:11pt;color:#3a4a55;line-height:1.8}
 .rp .rp-sign{margin-top:40pt;break-inside:avoid}
 .rp .rp-sign-line{width:230pt;border-top:1px solid #1d2a33;margin-bottom:4pt}
-.rp .rp-sign-img{display:block;height:54pt;width:auto;max-width:220pt;margin:0 0 -5pt 8pt;position:relative}
+.rp .rp-sign-img{display:block;height:54pt;width:auto;max-width:300pt;object-fit:contain;margin:0 0 -5pt 8pt;position:relative}
 .sign-box{width:220px;height:78px;border:1px dashed var(--border-strong);border-radius:10px;display:grid;place-items:center;background:#fff;overflow:hidden;padding:4px}
 .sign-box img{max-width:100%;max-height:100%;object-fit:contain}
 .resp-sign-row{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:18px;align-items:start}
 .resp-sign-row>.field{margin:0}
 .sign-preview{border:1px solid var(--border);border-radius:10px;padding:12px 18px 14px;background:#fff;font-size:12.5px;line-height:1.45;color:var(--text-2)}
-.sign-preview img{display:block;height:44px;width:auto;margin:0 0 -4px 4px}
+.sign-preview img{display:block;height:54px;width:auto;max-width:300px;object-fit:contain;margin:0 0 -5px 8px}
+.sign-preview .sp-sig{cursor:grab;touch-action:none;border-radius:4px}
+.sign-preview .sp-sig:active{cursor:grabbing}
+.sign-preview .sp-sig:hover,.sign-preview .sp-sig:focus-visible{outline:1px dashed var(--primary);outline-offset:3px}
+.sign-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.sign-tools input[type=range]{flex:1;min-width:120px;max-width:200px;accent-color:var(--primary)}
+.sign-tools output{font-variant-numeric:tabular-nums;font-size:12.5px;color:var(--text-2);min-width:46px}
 .sign-preview b{color:var(--text)}
 .sign-preview .sp-line{width:230px;max-width:100%;border-top:1px solid var(--text);margin-bottom:4px}
 .sign-preview .sp-nosig{height:40px;display:flex;align-items:flex-end;padding-bottom:4px;color:var(--muted);font-size:11.5px}
@@ -1654,6 +1660,8 @@ const DEFAULT_SETTINGS = {
   requiredFields: { documentId: true, contractType: true, supervisor: false, seniority: false, education: false },
   /** Verificación al ingresar con la cédula (de cada formulario, en su cuestionario): foto y ubicación (off, optional, required) e IP pública. */
   access: { photo: 'off', location: 'off', ip: true },
+  /** Firma del responsable en los informes: tamaño en % y desplazamiento en % de su propio ancho y alto. */
+  signature: { scale: 100, dx: 0, dy: 0 },
 };
 
 const Settings = {
@@ -1666,6 +1674,7 @@ const Settings = {
       alerts: { ...d.alerts, ...(s.alerts || {}) },
       requiredFields: { ...d.requiredFields, ...(s.requiredFields || {}) },
       access: { ...d.access, ...(s.access || {}) },
+      signature: { ...d.signature, ...(s.signature || {}) },
     };
   },
   /** Parámetros vigentes: los del formulario activo (o los valores por defecto del contrato si no hay formulario). */
@@ -1777,6 +1786,18 @@ const Signature = {
   pick(study, name = study && study.responsibleName) {
     const s = study && this.ok(study.signatureDataUrl) ? study.signatureDataUrl : '';
     return s && (s !== this.DEFAULT || this.isOwner(name)) ? s : '';
+  },
+  /** Ajuste guardado en el contrato: tamaño (%) y desplazamiento (% de su propio ancho y alto). */
+  fit(study) {
+    const s = (study && study.settings && study.settings.signature) || {};
+    const num = (v, def, min, max) => { const x = U.num(v); return x === null ? def : Math.max(min, Math.min(max, x)); };
+    return { scale: num(s.scale, 100, 60, 180), dx: num(s.dx, 0, -25, 25), dy: num(s.dy, 0, -30, 30) };
+  },
+  LIMITS: { scale: [60, 180], dx: [-25, 25], dy: [-30, 30] },
+  /** Estilo de la imagen de la firma: el alto base se multiplica por el tamaño elegido. */
+  style(study, base, unit = 'px') {
+    const f = this.fit(study), r = x => Math.round(x * 10) / 10;
+    return `height:${r(base * f.scale / 100)}${unit};transform:translate(${r(f.dx)}%,${r(f.dy)}%)`;
   },
   /** Vuelve transparente el fondo claro de una imagen de firma y la recorta al trazo. */
   async clean(dataUrl, maxW = 520) {
@@ -7553,7 +7574,7 @@ const Report = {
     concl.push(`${U.pct(pctOf(R.counts.validated, submitted.length), 0)} de las respuestas enviadas cuenta con validación administrativa. Los resultados no validados deben considerarse preliminares.`);
     concl.push('Se recomienda que los resultados sean analizados de manera conjunta con los jefes de dependencia y el área de talento humano, como insumo técnico para las decisiones sobre la organización del trabajo.');
     out.push(`<div class="rp-section">${h2(17, titles[16])}<ol>${concl.map(c => `<li>${c}</li>`).join('')}</ol>
-      <div class="rp-sign">${sig ? `<img class="rp-sign-img" src="${sig}" alt="Firma">` : ''}<div class="rp-sign-line"></div><b>${U.esc(o.preparedBy || '')}</b>${respLines.map(l => `<br>${U.esc(l)}`).join('')}${respContact ? `<br><span style="color:#5a6873">${U.esc(respContact)}</span>` : ''}</div></div>`);
+      <div class="rp-sign">${sig ? `<img class="rp-sign-img" src="${sig}" alt="Firma" style="${Signature.style(study, 54, 'pt')}">` : ''}<div class="rp-sign-line"></div><b>${U.esc(o.preparedBy || '')}</b>${respLines.map(l => `<br>${U.esc(l)}`).join('')}${respContact ? `<br><span style="color:#5a6873">${U.esc(respContact)}</span>` : ''}</div></div>`);
 
     /* 18. ANEXOS */
     let annex = p('Anexo A. Detalle de actividades por funcionario.');
@@ -8429,10 +8450,10 @@ const Exporter = {
       // Firma del responsable: la imagen va antes de la línea para que la línea quede visible encima
       const sig = Signature.pick(st), sigJpg = sig ? await Pdf.jpeg(sig, 640).catch(() => '') : '';
       const sigInfo = sigJpg ? Pdf.jpegInfo(atob(sigJpg.split(',')[1])) : null;
-      const sw = 150, sh = sigInfo ? sw * sigInfo.h / sigInfo.w : 0;
+      const sfit = Signature.fit(st), sw = 150 * sfit.scale / 100, sh = sigInfo ? sw * sigInfo.h / sigInfo.w : 0;
       d.ensure((sh ? sh + 52 : 64) + 36);
       d.y += sh ? 14 : 26;
-      if (sh) { d.image(sigJpg, X + 6, d.y, sw, sh); d.y += sh - 8; }
+      if (sh) { d.image(sigJpg, X + 6 + sw * sfit.dx / 100, d.y + sh * sfit.dy / 100, sw, sh); d.y += sh - 8; }
       d.line(X, d.y, X + 200, d.y, { color: C.text2, lw: 0.6 });
       d.y += 6;
       d.text(X, d.y, st.responsibleName || App.user().name || 'Responsable del estudio', { size: 9, bold: true });
@@ -8674,7 +8695,9 @@ const SettingsView = {
           <div class="sp"></div>
           <div class="resp-sign-row">
             <div class="field"><label>Firma</label><div class="row" style="align-items:center;gap:16px"><div class="sign-box" id="signBox" style="flex:0 0 auto">${Signature.ok(d.study.signatureDataUrl) ? `<img src="${d.study.signatureDataUrl}" alt="Firma">` : '<span class="small muted">Sin firma</span>'}</div><div class="stack" style="gap:8px;flex:1;min-width:240px"><div class="row"><button class="btn btn-sm" data-action="sign">${icon('upload')} Cargar firma</button><button class="btn btn-sm btn-ghost" data-action="nosign">Quitar</button>${Signature.DEFAULT && Signature.isOwner(d.study.responsibleName) && d.study.signatureDataUrl !== Signature.DEFAULT ? '<button class="btn btn-sm btn-ghost" data-action="defsign">Usar mi firma</button>' : ''}</div><span class="hint">Aparece sobre el nombre del responsable en el informe técnico y en los informes individuales en PDF. El fondo claro de la imagen se vuelve transparente.</span></div></div></div>
-            <div class="field"><label>Así aparece en los informes</label><div class="sign-preview" id="signPreview"></div></div>
+            <div class="field"><label>Así aparece en los informes</label><div class="sign-preview" id="signPreview"></div>
+              <div class="sign-tools" id="signTools" hidden><label for="sigScale" class="small">Tamaño</label><input type="range" id="sigScale" min="60" max="180" step="5" data-k="study.settings.signature.scale" aria-label="Tamaño de la firma"><output id="sigScaleOut" for="sigScale">100 %</output><button type="button" class="btn btn-sm btn-ghost" data-action="sigReset">Restablecer</button></div>
+              <span class="hint" id="signHint" hidden>Arrastre la firma para moverla. Con el teclado: flechas para moverla y + o − para el tamaño.</span></div>
           </div>
           ${otherResp ? `<label class="switch" style="margin-top:14px"><input type="checkbox" data-k="syncResp" checked> Actualizar también estos datos en ${U.plural(otherResp, 'el otro contrato', 'los otros contratos')} de este responsable</label>` : ''}`)}
           <div class="alert ${form && form.status !== 'closed' ? 'alert-info' : 'alert-warn'}"><span class="alert-ico">${form && form.status !== 'closed' ? 'ℹ️' : '⚠️'}</span><div><div class="alert-title">PARÁMETROS ${form ? 'DEL FORMULARIO ACTIVO' : 'POR DEFECTO DEL CONTRATO'}</div>${form ? (form.status === 'closed' ? `<b>${U.esc(form.name)}</b> está cerrado: sus parámetros quedan fijos para que sus resultados no cambien. Si necesita modificarlos, vuelva a abrir el formulario en Gestión de formularios.` : `Las secciones siguientes se aplican a <b>${U.esc(form.name)}</b>. Para ajustar otro formulario, cámbielo en el menú lateral.`) : 'No hay un formulario activo: los valores se guardarán como predeterminados para los nuevos formularios del contrato.'}</div></div>
@@ -8725,6 +8748,20 @@ const SettingsView = {
     };
     view.oninput = e => { if (e.target.dataset.k && e.target.type !== 'checkbox') onChange(e.target); };
     view.onchange = e => { if (e.target.dataset.k && (e.target.type === 'checkbox' || e.target.tagName === 'SELECT')) onChange(e.target); if (e.target.dataset.dept) this.renameDept(e.target); };
+    // Mover la firma arrastrándola sobre la vista previa
+    view.onpointerdown = e => {
+      const img = e.target.closest('.sp-sig');
+      if (!img) return;
+      e.preventDefault();
+      img.focus();
+      const f = Signature.fit(this.draft.study), w = img.offsetWidth || 1, hh = img.offsetHeight || 1, x0 = e.clientX, y0 = e.clientY;
+      const move = ev => this.setSig({ dx: f.dx + ((ev.clientX - x0) / w) * 100, dy: f.dy + ((ev.clientY - y0) / hh) * 100 }, img);
+      const up = () => { img.removeEventListener('pointermove', move); img.removeEventListener('pointerup', up); img.removeEventListener('pointercancel', up); };
+      try { img.setPointerCapture(e.pointerId); } catch (err) { /* sin captura, el arrastre sigue funcionando */ }
+      img.addEventListener('pointermove', move);
+      img.addEventListener('pointerup', up);
+      img.addEventListener('pointercancel', up);
+    };
     view.onclick = e => {
       const t = e.target.closest('[data-action]');
       if (!t) return;
@@ -8747,6 +8784,7 @@ const SettingsView = {
           Store.save(); UI.toast('Parámetros restaurados'); this.render(view);
         });
       }
+      else if (a === 'sigReset') { this.setSig({ scale: 100, dx: 0, dy: 0 }); UI.toast('Firma restablecida (pendiente guardar configuración)'); }
       else if (a === 'addDept') this.addDept();
       else if (a === 'delDept') this.deleteDept(t.dataset.id);
     };
@@ -8757,8 +8795,33 @@ const SettingsView = {
     if (age) age.textContent = a !== null ? `Edad: ${a} años` : st.responsibleBirthDate ? 'Revise la fecha' : 'La edad se calcula sola';
     const pv = $('#signPreview');
     if (!pv) return;
-    const sig = Signature.pick(st), ct = Responsible.contact(st);
-    pv.innerHTML = `${sig ? `<img src="${sig}" alt="Firma">` : '<div class="sp-nosig">Sin firma</div>'}<div class="sp-line"></div><b>${U.esc(st.responsibleName || 'Nombre del responsable')}</b>${Responsible.lines(st).map(l => `<div>${U.esc(l)}</div>`).join('')}${ct ? `<div class="muted">${U.esc(ct)}</div>` : ''}`;
+    const sig = Signature.pick(st), ct = Responsible.contact(st), f = Signature.fit(st);
+    const tools = $('#signTools'), hint = $('#signHint'), rng = $('#sigScale'), out = $('#sigScaleOut');
+    if (tools) tools.hidden = !sig;
+    if (hint) hint.hidden = !sig;
+    if (rng) rng.value = Math.round(f.scale);
+    if (out) out.textContent = Math.round(f.scale) + ' %';
+    pv.innerHTML = `${sig ? `<img class="sp-sig" src="${sig}" alt="Firma" style="${Signature.style(st, 54)}" tabindex="0" title="Arrástrela para moverla">` : '<div class="sp-nosig">Sin firma</div>'}<div class="sp-line"></div><b>${U.esc(st.responsibleName || 'Nombre del responsable')}</b>${Responsible.lines(st).map(l => `<div>${U.esc(l)}</div>`).join('')}${ct ? `<div class="muted">${U.esc(ct)}</div>` : ''}`;
+    const img = $('.sp-sig', pv);
+    if (img) img.onkeydown = ev => {
+      const step = ev.shiftKey ? 5 : 1;
+      const move = { ArrowLeft: ['dx', -step], ArrowRight: ['dx', step], ArrowUp: ['dy', -step], ArrowDown: ['dy', step], '+': ['scale', step], '-': ['scale', -step] }[ev.key];
+      if (!move) return;
+      ev.preventDefault();
+      this.setSig({ [move[0]]: Signature.fit(this.draft.study)[move[0]] + move[1] });
+    };
+  },
+  /** Guarda el tamaño o la posición de la firma en el borrador y lo refleja en la vista previa. */
+  setSig(patch, img) {
+    const st = this.draft.study;
+    st.settings = st.settings || {};
+    const r = x => Math.round(x * 10) / 10;
+    st.settings.signature = Object.fromEntries(Object.entries({ ...Signature.fit(st), ...patch }).map(([k, v]) => [k, r(U.num(v) ?? 0)]));
+    const f = Signature.fit(st), el = img || $('.sp-sig');
+    if (el) el.style.cssText = Signature.style(st, 54);
+    const out = $('#sigScaleOut'), rng = $('#sigScale');
+    if (out) out.textContent = Math.round(f.scale) + ' %';
+    if (rng) rng.value = Math.round(f.scale);
   },
   refreshComputed() {
     const s = this.draft.p;
@@ -8794,6 +8857,9 @@ const SettingsView = {
     if (nSent && calcOf(params) !== calcOf(Settings.merge(form.settings)) && !(await UI.confirm(`Los nuevos parámetros cambian los resultados de ${U.plural(nSent, 'respuesta enviada', 'respuestas enviadas')} de «${U.esc(form.name)}». ¿Desea guardarlos?`, { title: 'Recalcular resultados', ok: 'Guardar y recalcular' }))) return;
     delete params.requiredFields;
     delete params.access;
+    // El ajuste de la firma es del contrato (no de los parámetros de cálculo del formulario)
+    const signature = Signature.fit(st);
+    delete params.signature;
     const requiredFields = { ...st.settings.requiredFields };
     // La verificación al ingresar se configura en el cuestionario de cada formulario y se conserva
     const access = Settings.merge(study.settings).access;
@@ -8803,11 +8869,11 @@ const SettingsView = {
     if (d.syncResp) Store.db.studies.filter(x => x.id !== study.id && [prevResp, study.responsibleName].some(n => U.normalize(n) && U.normalize(x.responsibleName) === U.normalize(n))).forEach(x => { Responsible.FIELDS.forEach(k => { x[k] = study[k]; }); x.updatedAt = U.now(); });
     if (form) {
       // Un formulario cerrado conserva sus parámetros: cambiarlos alteraría sus resultados
-      if (form.status !== 'closed') Store.update('forms', form.id, { settings: { ...Settings.merge(params), requiredFields: undefined, access: Settings.merge(form.settings).access } });
-      if (d.alsoDefault) study.settings = { ...Settings.merge(params), requiredFields, access };
-      else study.settings = { ...Settings.merge(study.settings), requiredFields, access };
+      if (form.status !== 'closed') Store.update('forms', form.id, { settings: { ...Settings.merge(params), requiredFields: undefined, access: Settings.merge(form.settings).access, signature: undefined } });
+      if (d.alsoDefault) study.settings = { ...Settings.merge(params), requiredFields, access, signature };
+      else study.settings = { ...Settings.merge(study.settings), requiredFields, access, signature };
     } else {
-      study.settings = { ...Settings.merge(params), requiredFields, access };
+      study.settings = { ...Settings.merge(params), requiredFields, access, signature };
     }
     study.updatedAt = U.now();
     Store.save();
@@ -8900,13 +8966,15 @@ const StudiesView = {
     const studies = [...Store.db.studies].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
     view.innerHTML = Views.pageHead('Administración', 'Gestión de contratos', 'Gestione los contratos de distintas instituciones. Cada contrato tiene su propia base de funcionarios, dependencias, formularios de medición y configuración.', `<button class="btn btn-primary" data-action="new">${icon('plus')} Nuevo contrato</button>`) + `
       <div class="grid g3">${studies.map(st => {
+        // Siempre debe quedar al menos un contrato: con uno solo, la papelera queda deshabilitada y explica por qué
+        const solo = studies.length < 2, SOLO = 'No se puede eliminar: debe existir al menos un contrato. Cree otro primero.';
         const emps = Store.inStudy('employees', st.id).length;
         const forms = Store.formsOf(st.id);
         const sub = Store.inStudy('responses', st.id).filter(r => r.status === 'submitted').length;
         return `<div class="card study-card ${st.id === active ? 'active' : ''}">
           <div class="row" style="justify-content:space-between;flex-wrap:nowrap;align-items:flex-start"><div style="min-width:0"><div class="eyebrow">${U.esc(st.institutionName)}</div><div class="card-title">${U.esc(st.name)}</div><div class="card-sub">${forms[0] ? 'Último formulario: ' + U.esc(forms[0].name) : 'Sin formularios'}</div></div>${st.id === active ? UI.badge('Activo', 'ok') : ''}</div>
           <dl class="dl"><dt>Funcionarios</dt><dd>${emps}</dd><dt>Formularios</dt><dd>${forms.length}</dd><dt>Respuestas enviadas</dt><dd>${sub}</dd><dt>Dependencias</dt><dd>${Store.inStudy('departments', st.id).length}</dd><dt>Responsable</dt><dd>${U.esc(st.responsibleName || '—')}</dd></dl>
-          <div class="row" style="margin-top:auto">${st.id !== active ? `<button class="btn btn-sm btn-primary" data-action="activate" data-id="${st.id}">Activar</button>` : `<a class="btn btn-sm" href="#/settings">Configurar</a>`}<button class="btn btn-sm" data-action="dup" data-id="${st.id}">${icon('copy')} Duplicar</button><button class="btn btn-sm btn-danger" data-action="del" data-id="${st.id}" ${Store.db.studies.length < 2 ? 'disabled' : ''} title="Eliminar contrato">${icon('trash')}</button></div>
+          <div class="row" style="margin-top:auto">${st.id !== active ? `<button class="btn btn-sm btn-primary" data-action="activate" data-id="${st.id}">Activar</button>` : `<a class="btn btn-sm" href="#/settings">Configurar</a>`}<button class="btn btn-sm" data-action="dup" data-id="${st.id}">${icon('copy')} Duplicar</button>${solo ? `<span class="tip" title="${SOLO}">` : ''}<button class="btn btn-sm btn-danger" data-action="del" data-id="${st.id}" ${solo ? 'disabled' : ''} title="${solo ? SOLO : 'Eliminar contrato'}">${icon('trash')}</button>${solo ? '</span>' : ''}</div>
         </div>`;
       }).join('')}</div>`;
     UI.bind(view, {
