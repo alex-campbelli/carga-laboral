@@ -781,6 +781,15 @@ tr.row-selected td{background:#F1F8FA}
 .form-wrap .gate-form .input{flex:1;height:46px;font-size:18px;letter-spacing:.06em;text-align:center;font-variant-numeric:tabular-nums}
 .form-wrap .gate-form .btn{height:46px;padding:0 20px;font-size:14px}
 .gate-msg{width:100%;max-width:480px;text-align:left}
+.gate-entry{width:100%;max-width:430px;margin-top:6px;text-align:left}
+.gate-label{display:block;font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px}
+.gate-hint{margin:8px 0 0;font-size:12px;line-height:1.45;color:var(--muted)}
+.gate-purpose{display:flex;align-items:flex-start;gap:8px;max-width:560px;margin:14px auto 0;padding:12px 14px;border:1px solid var(--ok-bd,var(--border));border-radius:12px;background:var(--ok-bg,var(--surface-2));text-align:left;font-size:12.5px;line-height:1.5;color:var(--text-2)}
+.gate-purpose svg{width:16px;height:16px;margin-top:2px;flex:0 0 auto;color:var(--ok)}
+.gate-purpose b{color:var(--text)}
+.kiosk-brand{display:flex;align-items:center;justify-content:center;gap:7px;margin:22px auto 10px;font-size:11.5px;letter-spacing:.02em;color:var(--muted);opacity:.85}
+.kiosk-brand img{display:block;width:16px;height:16px;object-fit:contain}
+.kiosk-brand b{font-weight:600;color:var(--text-2)}
 .gate-msg:empty{display:none}
 .gate-note{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);margin:4px 0 0}
 .gate-note svg{width:14px;height:14px}
@@ -838,6 +847,19 @@ tr.row-selected td{background:#F1F8FA}
 .gate-consent{display:flex;align-items:flex-start;gap:8px;max-width:560px;margin:14px auto 0;text-align:left;font-size:12.5px;line-height:1.45;color:var(--text-2);cursor:pointer}
 .gate-consent input{margin-top:2px;flex:0 0 auto}
 .gate-consent span{white-space:pre-line}
+.gate-privacy{max-width:560px;margin:10px auto 0;text-align:left;font-size:12px;line-height:1.5;color:var(--muted)}
+.gate-privacy summary{cursor:pointer;color:var(--text-2);font-weight:600;padding:4px 0;display:flex;align-items:center;gap:6px}
+.gate-privacy summary svg{width:14px;height:14px;flex:0 0 auto}
+.gate-privacy summary{list-style:none}
+.gate-privacy summary::-webkit-details-marker{display:none}
+.gate-privacy summary::after{content:'▾';font-size:11px;line-height:1;color:var(--muted)}
+.gate-privacy[open] summary::after{content:'▴'}
+.gate-privacy summary:hover{color:var(--primary)}
+.gate-privacy summary:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:6px}
+.gate-privacy p{margin:6px 0 0}
+.gate-privacy .gate-trace{display:flex;align-items:flex-start;gap:6px;margin-top:10px}
+.gate-privacy .gate-trace svg{width:14px;height:14px;margin-top:2px;flex:0 0 auto}
+.gate-privacy b{color:var(--text-2)}
 .login-form{display:flex;flex-direction:column;gap:12px;width:100%;max-width:360px;text-align:left;margin-top:6px}
 .login-form .btn{width:100%}
 .storage-pill.is-bad{color:var(--bad);font-weight:600}
@@ -1253,6 +1275,7 @@ html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
   body.kiosk .form-wrap .gate-form .input{height:54px;font-size:20px}
   body.kiosk .form-wrap .gate-form .btn{height:50px;font-size:16px;width:100%}
   body.kiosk .gate-consent{font-size:13px}
+  body.kiosk .gate-privacy{font-size:12.5px}
   body.kiosk .verify-grid{grid-template-columns:minmax(0,1fr)}
   body.kiosk .verify-actions .btn{flex:1 1 auto}
   body.kiosk .verify-foot{flex-direction:column-reverse;width:100%;gap:8px}
@@ -1660,6 +1683,8 @@ const DEFAULT_SETTINGS = {
   requiredFields: { documentId: true, contractType: true, supervisor: false, seniority: false, education: false },
   /** Verificación al ingresar con la cédula (de cada formulario, en su cuestionario): foto y ubicación (off, optional, required) e IP pública. */
   access: { photo: 'off', location: 'off', ip: true },
+  /** ¿El funcionario debe elegir su área para poder enviar? Se configura en cada formulario. */
+  requireArea: true,
   /** Firma del responsable en los informes: tamaño en % y desplazamiento en % de su propio ancho y alto. */
   signature: { scale: 100, dx: 0, dy: 0 },
 };
@@ -1865,10 +1890,13 @@ const Models = {
   },
   /** Formulario: una medición de carga laboral (una solicitud) con sus propios parámetros y participantes. */
   form(d = {}) {
-    return Models.base({
+    const f = Models.base({
       studyId: null, name: 'Medición de carga laboral', request: '', requestedBy: '', period: String(new Date().getFullYear()),
       startDate: '', endDate: '', status: 'open', settings: U.clone(DEFAULT_SETTINGS), isDemo: false, ...d,
     });
+    // El enlace corto es el comienzo del identificador: no puede repetirse entre formularios
+    if (!d.id) { const has = c => ((Store.db && Store.db.forms) || []).some(x => String(x.id).slice(0, 8) === c); while (has(String(f.id).slice(0, 8))) f.id = U.uid(); }
+    return f;
   },
   /** Participación de un funcionario en un formulario (base para enlaces individuales en la versión en línea). */
   assignment(d = {}) { return Models.base({ studyId: null, formId: null, employeeId: null, isDemo: false, ...d }); },
@@ -2622,12 +2650,19 @@ const Cloud = {
 const Remote = {
   active: false,       // página abierta por un funcionario (sin sesión de administrador)
   formId: null,
+  ref: null,           // lo que traía el enlace: el código corto o el identificador completo
   pub: null,           // datos públicos del formulario (worker_form)
   session: null,       // datos de la persona tras entrar con su cédula (worker_enter / worker_resume)
   KEY: 'ecl.worker',
-  isWorkerHash(h) { return /^#\/ingreso\/[\w-]+/.test(h) || /^#\/(form|result)\/[\w-]+\/[\w-]+\?(.*&)?modo=funcionario/.test(h); },
-  formIdOf(h) { const m = /^#\/(?:ingreso|form|result)\/([\w-]+)/.exec(h || ''); return m ? m[1] : null; },
-  allowed(h) { return this.isWorkerHash(h) && this.formIdOf(h) === this.formId; },
+  isWorkerHash(h) { return /^#\/(?:f|ingreso)\/[\w-]+/.test(h) || /^#\/(form|result)\/[\w-]+\/[\w-]+\?(.*&)?modo=funcionario/.test(h); },
+  formIdOf(h) { const m = /^#\/(?:f|ingreso|form|result)\/([\w-]+)/.exec(h || ''); return m ? m[1] : null; },
+  same(a, b) { return !!a && !!b && String(a).toUpperCase() === String(b).toUpperCase(); },
+  /** Su sesión vale para el código corto, para el identificador completo y para el enlace con el que entró. */
+  allowed(h) {
+    if (!this.isWorkerHash(h)) return false;
+    const r = this.formIdOf(h);
+    return this.same(r, this.formId) || this.same(r, this.ref) || this.same(r, Access.codeOf(this.formId));
+  },
   async rpc(fn, args) {
     const { data, error } = await Cloud.client.rpc(fn, args);
     if (error) throw error;
@@ -2642,28 +2677,34 @@ const Remote = {
   async start(hash) {
     this.active = true;
     document.body.classList.add('kiosk');
-    this.formId = this.formIdOf(hash);
+    this.ref = this.formIdOf(hash);
+    // Primero los datos públicos: con ellos se sabe a qué formulario apunta el código corto
+    if (!(await this.loadForm(this.ref))) {
+      $('#view').innerHTML = `<div class="form-wrap gate-wrap">${UI.empty('Formulario no disponible', 'El enlace no es válido o el formulario ya no existe. Comuníquese con el responsable del estudio.')}</div>`;
+      return;
+    }
     const saved = this.readToken();
     if (saved && saved.formId === this.formId && saved.token) {
       try {
         const d = await this.rpc('worker_resume', { p_token: saved.token });
-        if (d && d.result === 'ok') this.session = d; else this.clearToken();
+        if (d && d.result === 'ok') { this.session = d; this.inject(); } else this.clearToken();
       } catch (e) { /* sin conexión: vuelve a entrar con su cédula */ }
     }
-    if (!(await this.loadForm(this.formId))) {
-      $('#view').innerHTML = `<div class="form-wrap gate-wrap">${UI.empty('Formulario no disponible', 'El enlace no es válido o el formulario ya no existe. Comuníquese con el responsable del estudio.')}</div>`;
-      return;
-    }
     if (this.session) Access.grant(this.formId, this.session.employee.id, this.session.token);
+    // Quien abra un enlace largo de los anteriores queda con el corto en la barra de direcciones
+    const short = Access.hash(this.formId);
+    if (/^#\/(?:f|ingreso)\//.test(location.hash) && location.hash !== short) history.replaceState(null, '', short);
     window.addEventListener('hashchange', () => App.route());
     App.route(true);
   },
-  async loadForm(formId) {
+  /** Datos públicos del formulario a partir del enlace (código corto o identificador completo). */
+  async loadForm(ref) {
     try {
-      const d = await this.rpc('worker_form', { p_form_id: formId });
+      const r = String(ref || '');
+      const d = Cloud.UUID.test(r) ? await this.rpc('worker_form', { p_form_id: r }) : await this.rpc('worker_open', { p_ref: r });
       if (!d || d.result !== 'ok') return false;
       this.pub = d;
-      this.formId = formId;
+      this.formId = d.form.id;
       this.inject();
       return true;
     } catch (e) { console.error(e); return false; }
@@ -2755,7 +2796,7 @@ const Remote = {
     UI.modal({ title: 'No se pudo guardar', body: `<p style="margin:0">${msg}</p>`, actions: [{ label: 'Entendido', cls: 'btn-primary', value: true }] }).then(() => {
       this._ending = false;
       if (FormView.st) { FormView.st.dirty = false; App.leaveGuard = null; }
-      App.replace(`#/ingreso/${this.formId}`);
+      App.replace(Access.hash(this.formId));
     });
   },
 };
@@ -3009,7 +3050,7 @@ const Validate = {
     const req = (field, label) => errors.push({ step: 1, field, msg: `Complete el campo «${label}».` });
     if (!emp.fullName.trim()) req('employee.fullName', 'Nombre completo');
     // El área solo se exige cuando el contrato tiene áreas registradas
-    if (!emp.departmentId && Store.inStudy('departments', emp.studyId).length) req('employee.departmentId', 'Área');
+    if (!emp.departmentId && s.requireArea !== false && Store.inStudy('departments', emp.studyId).length) req('employee.departmentId', 'Área');
     if (!emp.position.trim()) req('employee.position', 'Cargo');
     this.ID_FIELDS.forEach(([k, label]) => { if (s.requiredFields[k] && !String(emp[k] || '').trim()) req('employee.' + k, label); });
     return errors;
@@ -3785,7 +3826,7 @@ const App = {
   },
   route(force = false) {
     // Funcionario en línea: solo el ingreso, su formulario y la confirmación
-    if (Remote.active && !Remote.allowed(location.hash)) { history.replaceState(null, '', `#/ingreso/${Remote.formId}`); force = true; }
+    if (Remote.active && !Remote.allowed(location.hash)) { history.replaceState(null, '', Access.hash(Remote.formId)); force = true; }
     let hash = location.hash || '#/dashboard';
     if (this.skipNext) { this.skipNext = false; return; }
     if (!force && hash !== this.currentHash && this.leaveGuard && this.leaveGuard.dirty()) {
@@ -3799,7 +3840,8 @@ const App = {
     Evidence.stopCamera();
     const [path, query] = hash.split('?');
     const params = new URLSearchParams(query || '');
-    document.body.classList.toggle('kiosk', params.get('modo') === 'funcionario' || path.startsWith('#/ingreso/'));
+    const kiosk = params.get('modo') === 'funcionario' || path.startsWith('#/ingreso/') || path.startsWith('#/f/');
+    document.body.classList.toggle('kiosk', kiosk);
     document.body.classList.remove('nav-open');
     $$('#nav a').forEach(a => {
       const on = a.dataset.match.split('|').some(m => path.startsWith(m));
@@ -3820,6 +3862,7 @@ const App = {
       [/^#\/form\/(new|[\w-]+)$/, m => FormView.open(view, Store.fid(), m[1], params)],
       [/^#\/result\/([\w-]+)\/([\w-]+)$/, m => Views.result(view, m[1], m[2], params)],
       [/^#\/ingreso\/([\w-]+)$/, m => FormView.gate(view, m[1], params)],
+      [/^#\/f\/([\w-]+)$/, m => FormView.gate(view, Access.idOf(m[1]), params)],
       [/^#\/review$/, () => Views.review(view, params)],
       [/^#\/review\/([\w-]+)$/, m => Views.reviewResponse(view, m[1])],
       [/^#\/analysis(?:\/(\w+))?$/, m => AnalysisView.render(view, m[1] || 'institucional')],
@@ -3836,6 +3879,8 @@ const App = {
       console.error(err);
       view.innerHTML = `<div class="card card-pad"><div class="alert alert-bad"><div><div class="alert-title">ERROR AL MOSTRAR LA VISTA</div>${U.esc(err.message)}</div></div></div>`;
     }
+    // Marca discreta de la plataforma al pie de las pantallas del funcionario
+    if (kiosk && !$(".kiosk-brand", view)) view.insertAdjacentHTML("beforeend", Access.brand());
     window.scrollTo(0, 0);
     this.refreshShell();
   },
@@ -4863,9 +4908,9 @@ const Views = {
     const row = Domain.row(emp, Settings.forForm(form.id), form.id);
     const kiosk = params.get('modo') === 'funcionario';
     // Sin respuesta enviada no hay confirmación; en el enlace del funcionario se vuelve al ingreso (sin salir del modo funcionario)
-    if (row.formStatus !== 'submitted') { if (kiosk) App.replace(`#/ingreso/${form.id}`); else App.go(`#/form/${form.id}/${emp.id}`); return; }
+    if (row.formStatus !== 'submitted') { if (kiosk) App.replace(Access.hash(form)); else App.go(`#/form/${form.id}/${emp.id}`); return; }
     // En el enlace de los funcionarios la confirmación solo se ve durante la sesión abierta con la cédula
-    if (kiosk && !Access.has(form.id, emp.id)) { App.replace(`#/ingreso/${form.id}`); return; }
+    if (kiosk && !Access.has(form.id, emp.id)) { App.replace(Access.hash(form)); return; }
     view.innerHTML = `<div class="result-card">
       <div class="card">
         <div class="card-pad" style="text-align:center;border-bottom:1px solid var(--border)">
@@ -4878,14 +4923,14 @@ const Views = {
           <dl class="dl" style="max-width:520px;margin:0 auto"><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd><dt>Área</dt><dd>${U.esc(row.deptName)}</dd><dt>Actividades registradas</dt><dd class="num">${row.activities.length}</dd><dt>Fecha de envío</dt><dd>${U.fmtDate(row.response.submittedAt, true)}</dd></dl>
           ${kiosk ? '<p class="small muted" style="margin:0;text-align:center">Ya puede cerrar esta ventana, o pulse «Terminar» para que otra persona ingrese con su cédula. Esta pantalla vuelve sola al ingreso en un minuto.</p>' : ''}
           <div class="row" style="justify-content:center">
-            ${kiosk ? `<a class="btn btn-primary" href="#/ingreso/${form.id}" data-replace>${icon('logout')} Terminar</a>` : `<a class="btn btn-primary" href="#/review/${emp.id}">${icon('check')} Revisar y validar</a><a class="btn" href="#/forms/${form.id}">Volver a participantes</a>`}
+            ${kiosk ? `<a class="btn btn-primary" href="${Access.hash(form)}" data-replace>${icon('logout')} Terminar</a>` : `<a class="btn btn-primary" href="#/review/${emp.id}">${icon('check')} Revisar y validar</a><a class="btn" href="#/forms/${form.id}">Volver a participantes</a>`}
           </div>
         </div>
       </div></div>`;
     // En el enlace del funcionario «Terminar» no deja una pantalla a la que volver con el botón atrás
     view.onclick = e => { const a = e.target.closest('[data-replace]'); if (a) { e.preventDefault(); App.replace(a.getAttribute('href')); } };
     // En el enlace del funcionario la confirmación vuelve sola al ingreso con cédula al minuto: la siguiente persona no ve estos datos
-    if (kiosk) { const here = location.hash; setTimeout(() => { if (location.hash === here) App.replace(`#/ingreso/${form.id}`); }, 60000); }
+    if (kiosk) { const here = location.hash; setTimeout(() => { if (location.hash === here) App.replace(Access.hash(form)); }, 60000); }
   },
 };
 
@@ -5315,6 +5360,8 @@ const FormsView = {
     const qInit = Questionnaire.of(Settings.merge(f.settings));
     const qs = { level: qInit.level, fields: { ...qInit.fields } };
     const qCfg = () => (qs.level === 'personalizado' ? { level: 'personalizado', fields: { ...qs.fields } } : { level: qs.level });
+    // ¿Se le exige el área al funcionario? Es de cada formulario
+    let reqArea = Settings.merge(f.settings).requireArea !== false;
     // Verificación al ingresar (foto, ubicación, IP): es del formulario y funciona con cualquier nivel del cuestionario
     const acc = { ...Settings.merge(f.settings).access };
     const aCfg = () => ({ ...acc });
@@ -5329,6 +5376,13 @@ const FormsView = {
           <div class="q-group"><div class="q-group-title">Siempre incluidas</div><div class="q-group-sub">Necesarias para calcular la carga</div>${Questionnaire.REQUIRED.map(t => `<div class="q-item locked"><span class="q-lock" aria-hidden="true">🔒</span><span><b>${t}</b></span></div>`).join('')}</div>
           <div class="q-group"><div class="q-group-title">Recomendadas</div><div class="q-group-sub">Dan confiabilidad al estudio</div>${qItems('rec')}</div>
           <div class="q-group"><div class="q-group-title">De profundidad</div><div class="q-group-sub">Para un análisis más completo</div>${qItems('deep')}</div>
+        </div>
+        <div class="q-verify">
+          <div class="q-group-title">Datos del funcionario</div>
+          <div class="q-group-sub">Lo que ya está en su ficha se le muestra fijo; esto decide qué debe completar si le falta.</div>
+          <div class="q-verify-grid">
+            <label class="q-vitem"><span class="acc-ico">${icon('users')}</span><span><b>Área</b><span class="q-impact">Si se exige, quien no la tenga registrada debe elegirla para poder enviar. Si no, sus respuestas quedan en «Sin área» en el análisis y el informe.</span></span><select class="select" data-change="reqArea" aria-label="¿El área es obligatoria?"><option value="1">Obligatoria</option><option value="0">Opcional</option></select></label>
+          </div>
         </div>
         <div class="q-verify">
           <div class="q-group-title">Verificación al ingresar</div>
@@ -5385,6 +5439,7 @@ const FormsView = {
     const syncQ = () => {
       $$('[name=qLevel]', view).forEach(r => { r.checked = r.value === qs.level; });
       $$('[data-q]', view).forEach(c => { c.checked = qs.fields[c.dataset.q] !== false; });
+      const ra = $('[data-change="reqArea"]', view); if (ra) ra.value = reqArea ? '1' : '0';
       const meta = fields => `${Questionnaire.plan(fields).steps.length} pasos · ${U.plural(Questionnaire.perActivity(fields), 'pregunta', 'preguntas')} por actividad`;
       $$('[data-qmeta]', view).forEach(el => { const k = el.dataset.qmeta; el.textContent = meta(k === 'personalizado' ? qs.fields : Questionnaire.fieldsOf(k)); });
       const pl = Questionnaire.plan(qs.fields);
@@ -5399,6 +5454,7 @@ const FormsView = {
         qLevel: el => { qs.level = el.value; if (el.value !== 'personalizado') qs.fields = Questionnaire.fieldsOf(el.value); syncQ(); },
         qField: el => { qs.fields = { ...qs.fields, [el.dataset.q]: el.checked }; qs.level = 'personalizado'; syncQ(); },
         acc: el => { acc[el.dataset.k] = el.dataset.k === 'ip' ? el.value === '1' : el.value; },
+        reqArea: el => { reqArea = el.value === '1'; },
       },
       click: {
         save: () => {
@@ -5409,7 +5465,7 @@ const FormsView = {
           Object.assign(f, { name, period: $('#fPeriod').value.trim(), status: $('#fStatus').value, startDate: start, endDate: end, requestedBy: $('#fBy').value.trim(), request: $('#fReq').value.trim() });
           if (existing) {
             const wasClosed = existing.status === 'closed';
-            Store.update('forms', existing.id, { name: f.name, period: f.period, status: f.status, startDate: f.startDate, endDate: f.endDate, requestedBy: f.requestedBy, request: f.request, settings: { ...Settings.merge(existing.settings), questionnaire: qCfg(), access: aCfg() } });
+            Store.update('forms', existing.id, { name: f.name, period: f.period, status: f.status, startDate: f.startDate, endDate: f.endDate, requestedBy: f.requestedBy, request: f.request, settings: { ...Settings.merge(existing.settings), questionnaire: qCfg(), access: aCfg(), requireArea: reqArea } });
             if (!wasClosed && f.status === 'closed') Domain.freeze(existing.id);
             Store.save();
             UI.toast('Formulario actualizado');
@@ -5424,6 +5480,7 @@ const FormsView = {
           f.settings = Settings.merge(U.clone(src === '_contract' ? Store.study().settings : Store.get('forms', src).settings));
           f.settings.questionnaire = qCfg();
           f.settings.access = aCfg();
+          f.settings.requireArea = reqArea;
           Store.insert('forms', f);
           const ids = mode === 'active' ? activeEmps.map(e => e.id) : mode === 'pick' ? [...selected] : [];
           const n = Domain.assign(f.id, ids);
@@ -5446,7 +5503,7 @@ const FormsView = {
         const start = $('#fStart').value, end = $('#fEnd').value;
         if (start && end && end < start) return 'La fecha de cierre no puede ser anterior a la de inicio; ese cambio no se guardó.';
         const cur = Store.get('forms', existing.id), wasClosed = cur.status === 'closed';
-        Store.update('forms', existing.id, { name, period: $('#fPeriod').value.trim(), status: $('#fStatus').value, startDate: start, endDate: end, requestedBy: $('#fBy').value.trim(), request: $('#fReq').value.trim(), settings: { ...Settings.merge(cur.settings), questionnaire: qCfg(), access: aCfg() } });
+        Store.update('forms', existing.id, { name, period: $('#fPeriod').value.trim(), status: $('#fStatus').value, startDate: start, endDate: end, requestedBy: $('#fBy').value.trim(), request: $('#fReq').value.trim(), settings: { ...Settings.merge(cur.settings), questionnaire: qCfg(), access: aCfg(), requireArea: reqArea } });
         if (!wasClosed && cur.status === 'closed') Domain.freeze(existing.id);
         Store.save();
         App.refreshShell();
@@ -5774,8 +5831,29 @@ const Access = {
   /** Cédula comparable: sin puntos, espacios ni guiones, sin el tipo de documento (CC, CE, TI…), en mayúsculas y sin ceros a la izquierda.
    *  Es el único criterio para comparar cédulas en toda la aplicación. */
   key(doc) { return String(doc || '').toUpperCase().replace(/[^0-9A-Z]/g, '').replace(/^(CC|CE|TI|PA|PEP|PPT|RC)(?=[0-9])/, '').replace(/^0+(?=[0-9])/, ''); },
+  /** Marca discreta de la plataforma al pie de las pantallas del funcionario (el protagonismo es de la entidad). */
+  brand() {
+    return `<footer class="kiosk-brand"><img src="${Login.MARK}" alt="" width="16" height="16"><span>Plataforma de gestión de carga laboral · <b>Dussan System</b></span></footer>`;
+  },
+  /** Código corto del formulario para su enlace: los 8 primeros caracteres de su identificador. */
+  codeOf(form) {
+    const id = String((form && form.id) || form || '');
+    return Cloud.UUID.test(id) ? id.replace(/-/g, '').slice(0, 8).toUpperCase() : '';
+  },
+  /** Dirección del ingreso con cédula (con el código corto; con el identificador completo si no lo tuviera). */
+  hash(form) {
+    const c = this.codeOf(form);
+    return c ? `#/f/${c}` : `#/ingreso/${(form && form.id) || form || ''}`;
+  },
+  /** Formulario al que apunta un enlace, venga con el código corto o con el identificador completo. */
+  idOf(ref) {
+    const k = String(ref || '').trim().toUpperCase();
+    if (!/^[0-9A-F]{8}$/.test(k)) return ref;
+    const f = ((Store.db && Store.db.forms) || []).find(x => this.codeOf(x) === k);
+    return f ? f.id : ref;
+  },
   /** Enlace general del formulario (el mismo para todos los participantes). */
-  url(form) { return `${location.href.split('#')[0]}#/ingreso/${form.id}`; },
+  url(form) { return `${location.href.split('#')[0]}${this.hash(form)}`; },
   /** Registra un evento de trazabilidad y guarda. */
   log(type, form, d = {}) {
     const ev = Models.event({ studyId: form.studyId, formId: form.id, type, ...d });
@@ -5838,17 +5916,29 @@ const Access = {
     return `${first ? `Hola, ${first}.` : 'Cordial saludo.'} Le invitamos a diligenciar el formulario «${form.name}» del estudio de carga laboral de ${study.institutionName}.\n\nIngrese aquí: ${this.url(form)}\nPara entrar escriba su número de cédula; sus datos se cargarán automáticamente.${until ? `\n\nFecha límite: ${until}.` : ''}`;
   },
   /** Aviso de lo que se registra al ingresar (tratamiento de datos personales). */
-  /** Autorización de tratamiento de datos personales (Ley 1581 de 2012) que el funcionario marca antes de ingresar. */
+  /** Declaración que el funcionario marca antes de ingresar (compromiso y tratamiento de la información). */
   consent(acc, study) {
     // Texto propio de la entidad (Configuración); si no hay, el texto sugerido
     const custom = String((study && study.consentText) || '').trim();
     if (custom) return custom;
-    const data = ['identificación', 'datos laborales', 'actividades registradas', 'datos del equipo', acc.ip && 'dirección IP', acc.photo !== 'off' && 'foto', acc.location !== 'off' && 'ubicación'].filter(Boolean);
-    return `Autorizo a ${(study && study.institutionName) || 'la entidad'} para tratar mis datos personales (${data.slice(0, -1).join(', ')} y ${data[data.length - 1]}) con la finalidad exclusiva de realizar el estudio de carga laboral, conforme a la Ley 1581 de 2012. Puedo conocer, actualizar, rectificar o pedir la supresión de mis datos ante el responsable del estudio.`;
+    return 'Declaro que la información que proporcionaré en este formulario será completa, clara y veraz, y corresponderá a las actividades que realizo habitualmente durante mi jornada laboral. Asimismo, acepto las condiciones de participación y el tratamiento de la información para los fines del estudio de carga laboral.';
   },
-  notice(acc) {
-    const items = ['la fecha y hora', 'el navegador y el sistema operativo', acc.ip && 'la dirección IP', acc.photo !== 'off' && 'una foto', acc.location !== 'off' && 'su ubicación'].filter(Boolean);
-    return `Al ingresar se registran ${items.slice(0, -1).join(', ')} y ${items[items.length - 1]} como evidencia de su participación.`;
+  /** Información de privacidad que acompaña a la declaración (se muestra plegada). */
+  PRIVACY_TITLE: 'Información y privacidad',
+  DATA_TITLE: 'Protección de datos y uso de la información',
+  PURPOSE: 'La información proporcionada será utilizada exclusivamente para el desarrollo del estudio de carga laboral.',
+  TRACE_TITLE: 'Trazabilidad de la participación',
+  privacy() {
+    return 'La información suministrada será utilizada exclusivamente para analizar las actividades, tiempos y frecuencia asociados a la labor, con el propósito de obtener resultados objetivos que contribuyan a una adecuada organización y distribución del trabajo. Los datos serán tratados de manera responsable y conforme a la normativa vigente sobre protección de datos personales.';
+  },
+  traceNote(acc) {
+    const extra = [acc && acc.photo !== 'off' && 'una fotografía tomada con la cámara del equipo', acc && acc.location !== 'off' && 'su ubicación aproximada'].filter(Boolean);
+    return 'Cada cédula permite una única respuesta. Al ingresar al formulario se registran la fecha y hora de participación, así como información técnica de la sesión.'
+      + (extra.length ? ' También se registra' + (extra.length > 1 ? 'n ' + extra.join(' y ') : ' ' + extra[0]) + '.' : '');
+  },
+  /** Texto completo que queda como evidencia de lo que aceptó el funcionario. */
+  consentRecord(acc, study) {
+    return `${this.consent(acc, study)}\n\n${this.DATA_TITLE}\n${this.privacy()}\n\n${this.TRACE_TITLE}\n${this.traceNote(acc)}`;
   },
   /** Conserva solo la primera y la última foto de cada funcionario (el almacenamiento local es limitado). */
   prunePhotos(formId, employeeId) {
@@ -6034,7 +6124,7 @@ const FormView = {
     // Los funcionarios entran por el ingreso con cédula (la vista previa también empieza allí)
     if (params.get('modo') === 'funcionario') {
       if (preview ? !this._previewIn : (id === 'new' || !Access.has(form.id, id))) {
-        if (!preview) { history.replaceState(null, '', `#/ingreso/${form.id}`); App.currentHash = location.hash; }
+        if (!preview) { history.replaceState(null, '', Access.hash(form)); App.currentHash = location.hash; }
         this.gate(view, form.id, params);
         return;
       }
@@ -6073,7 +6163,7 @@ const FormView = {
     const stored = Store.get('responses', response.id);
     // Una cédula, una respuesta: quien ya envió solo vuelve a diligenciar si el revisor pidió corrección
     if (params.get('modo') === 'funcionario' && !preview && stored && stored.status === 'submitted' && !Access.canEdit(stored)) {
-      history.replaceState(null, '', `#/ingreso/${form.id}`); App.currentHash = location.hash;
+      history.replaceState(null, '', Access.hash(form)); App.currentHash = location.hash;
       this.gate(view, form.id, new URLSearchParams(), { state: 'submitted', response: stored });
       return;
     }
@@ -6138,13 +6228,21 @@ const FormView = {
       closed: () => `${ico('lock', 'bad')}<h2 class="gate-title">Formulario cerrado</h2><p class="gate-text">«${U.esc(form.name)}» ya no recibe respuestas. Si tiene dudas, comuníquese con el responsable del estudio.</p>`,
       preparation: () => `${ico('clock')}<h2 class="gate-title">El formulario aún no está disponible</h2><p class="gate-text">El formulario todavía se está preparando. Intente más tarde o comuníquese con el responsable del estudio.</p>`,
       submitted: x => `${ico('check', 'ok')}<h2 class="gate-title">Este formulario ya fue enviado</h2><p class="gate-text">La respuesta asociada a esta cédula se envió el ${U.fmtDate(x.response.submittedAt)} (${Access.time(x.response.submittedAt)}). Cada funcionario tiene una sola respuesta, por eso no es posible diligenciarlo de nuevo.</p><p class="gate-text small">Si necesita corregir algo, comuníquese con el responsable del estudio.</p><button type="button" class="btn" data-action="gateBack">Volver al ingreso</button>`,
-      input: () => `${ico('idCard')}<h2 class="gate-title">Ingrese con su número de cédula</h2>
-        <p class="gate-text">Sus datos se cargarán automáticamente. Solo pueden ingresar los funcionarios convocados a este formulario.</p>
-        <form class="gate-form" id="gateForm" autocomplete="off" novalidate><input class="input" id="gateDoc" aria-label="Número de cédula" placeholder="Número de cédula" maxlength="24" inputmode="numeric" enterkeyhint="go" autocomplete="off" value="${preview ? '1000000000' : ''}"><button type="submit" class="btn btn-primary">Ingresar →</button></form>
+      input: () => `${ico('idCard')}<h2 class="gate-title">Bienvenido</h2>
+        <p class="gate-text">Para comenzar, ingrese su número de cédula.</p>
+        <div class="gate-entry">
+          <label class="gate-label" for="gateDoc">Número de cédula</label>
+          <form class="gate-form" id="gateForm" autocomplete="off" novalidate><input class="input" id="gateDoc" placeholder="Número de cédula" maxlength="24" inputmode="numeric" enterkeyhint="go" autocomplete="off" value="${preview ? '1000000000' : ''}"><button type="submit" class="btn btn-primary">Continuar →</button></form>
+          <p class="gate-hint">Solo pueden ingresar los funcionarios convocados a este formulario. Sus datos se cargarán automáticamente.</p>
+        </div>
         <button type="button" class="gate-kbd" data-action="kbd">¿Su documento tiene letras?</button>
         <label class="gate-consent"><input type="checkbox" id="gateConsent" ${preview ? 'checked' : ''}><span>${U.esc(Access.consent(acc, study))}</span></label>
-        <div class="gate-msg" id="gateMsg" role="alert"></div>
-        <p class="gate-note">${icon('lock')}<span>Cada cédula tiene una sola respuesta. ${U.esc(Access.notice(acc))}</span></p>`,
+        <div class="gate-purpose">${icon('check')}<span><b>Su participación es importante</b><br>${U.esc(Access.PURPOSE)}</span></div>
+        <details class="gate-privacy"><summary>${icon('lock')}<span>${U.esc(Access.PRIVACY_TITLE)}</span></summary>
+          <p><b>${U.esc(Access.DATA_TITLE)}</b><br>${U.esc(Access.privacy())}</p>
+          <p><b>${U.esc(Access.TRACE_TITLE)}</b><br>${U.esc(Access.traceNote(acc))}</p>
+        </details>
+        <div class="gate-msg" id="gateMsg" role="alert"></div>`,
       verify: () => {
         const first = who ? String(who.employee.fullName || '').trim().split(/\s+/)[0] : '';
         const asks = [acc.photo !== 'off' && 'tómese una foto', acc.location !== 'off' && 'comparta su ubicación'].filter(Boolean).join(' y ');
@@ -6199,7 +6297,7 @@ const FormView = {
       if (Remote.active) {
         const cx = await ctx;
         let d;
-        try { d = await Remote.enter(form.id, who.doc, Access.consent(acc, study), cx.device, shot, geo); } catch (e) { d = { result: 'offline' }; }
+        try { d = await Remote.enter(form.id, who.doc, Access.consentRecord(acc, study), cx.device, shot, geo); } catch (e) { d = { result: 'offline' }; }
         if (d.result === 'ok') { Evidence.stopCamera(); Access.grant(form.id, d.employee.id, d.token); App.replace(`#/form/${form.id}/${d.employee.id}?modo=funcionario`); return; }
         if (btn) { btn.disabled = false; btn.textContent = btn.dataset.action === 'continue' ? 'Continuar al formulario →' : 'Ingresar →'; }
         if (d.result === 'submitted') { show('submitted', { response: { submittedAt: d.submittedAt } }); return; }
@@ -6208,7 +6306,7 @@ const FormView = {
         return;
       }
       const c = await ctx, r = who.response, emp = who.employee, sessionId = Evidence.sessionId();
-      Access.log('access', form, { employeeId: emp.id, documentId: emp.documentId, isDemo: !!emp.isDemo, sessionId, device: c.device, ip: c.ip, photo: shot, geo, consent: true, consentText: Access.consent(acc, study), exempt: verify && Domain.exempt(form.id, emp.id), detail: !r ? 'Ingresó al formulario' : r.status === 'draft' ? 'Continuó su borrador' : r.editUnlocked ? 'Ingresó para modificar su respuesta (edición habilitada)' : 'Ingresó para corregir su formulario' });
+      Access.log('access', form, { employeeId: emp.id, documentId: emp.documentId, isDemo: !!emp.isDemo, sessionId, device: c.device, ip: c.ip, photo: shot, geo, consent: true, consentText: Access.consentRecord(acc, study), exempt: verify && Domain.exempt(form.id, emp.id), detail: !r ? 'Ingresó al formulario' : r.status === 'draft' ? 'Continuó su borrador' : r.editUnlocked ? 'Ingresó para modificar su respuesta (edición habilitada)' : 'Ingresó para corregir su formulario' });
       if (shot) { Access.prunePhotos(form.id, emp.id); Store.save(); }
       Evidence.stopCamera();
       Access.grant(form.id, emp.id, sessionId);
@@ -6369,7 +6467,12 @@ const FormView = {
       <div class="card-body"><div class="form-grid">
         ${this.fld('Número de cédula', lockDoc ? ro(e.documentId) : `<input class="input" data-bind="employee.documentId" value="${U.esc(e.documentId)}" autocomplete="off">`, { ...opt('documentId'), hint: lockDoc ? (st.kiosk ? 'Verificada al ingresar.' : 'Tomada de la base de funcionarios.') : st.isNew ? 'Escríbala primero: si el funcionario ya está registrado se cargan sus datos.' : '' })}
         ${this.fld('Nombre completo', lockName ? ro(e.fullName) : `<input class="input" data-bind="employee.fullName" value="${U.esc(e.fullName)}" autocomplete="off">`, { req: true, err: 'employee.fullName', hint: lockName ? 'Si su nombre o su cédula tienen un error, comuníquese con el responsable del estudio.' : '' })}
-        ${lock('departmentId') ? this.fld('Área', ro(Domain.deptName(e.departmentId)), { req: true }) : depts.length || !this.st.remote ? this.fld('Área', `<select class="select" data-bind="employee.departmentId" id="deptSelect">${UI.options(depts.map(d => [d.id, d.name]), e.departmentId)}${this.st.remote ? '' : '<option value="__new__">+ Crear nueva área…</option>'}</select>`, { req: !!depts.length, err: 'employee.departmentId', hint: 'Es el área o servicio donde trabaja. Ej.: Facturación, Urgencias, Laboratorio.' }) : ''}
+        ${(() => {
+          const reqArea = !!depts.length && this.settings().requireArea !== false;
+          if (lock('departmentId')) return this.fld('Área', ro(Domain.deptName(e.departmentId)), { req: reqArea });
+          if (!depts.length && this.st.remote) return '';
+          return this.fld('Área', `<select class="select" data-bind="employee.departmentId" id="deptSelect">${UI.options(depts.map(d => [d.id, d.name]), e.departmentId)}${this.st.remote ? '' : '<option value="__new__">+ Crear nueva área…</option>'}</select>`, { req: reqArea, err: 'employee.departmentId', hint: reqArea ? 'Es el área o servicio donde trabaja. Ej.: Facturación, Urgencias, Laboratorio.' : 'Opcional. Es el área o servicio donde trabaja. Ej.: Facturación, Urgencias, Laboratorio.' });
+        })()}
         ${lock('position') ? this.fld('Cargo', ro(e.position), { req: true }) : this.fld('Cargo', `<input class="input" data-bind="employee.position" value="${U.esc(e.position)}" list="posList"><datalist id="posList">${U.uniq(Store.inStudy('employees').map(x => x.position).filter(Boolean)).map(p => `<option value="${U.esc(p)}">`).join('')}</datalist>`, { req: true, err: 'employee.position' })}
         ${lock('contractType') ? this.fld('Tipo de vinculación', ro(CATALOG.label('contractTypes', e.contractType)), { req: !!rf.contractType }) : this.fld('Tipo de vinculación', `<select class="select" data-bind="employee.contractType">${UI.options(CATALOG.contractTypes, e.contractType)}</select>`, opt('contractType'))}
         ${lock('supervisor') ? this.fld('Jefe inmediato', ro(e.supervisor), { req: !!rf.supervisor }) : this.fld('Jefe inmediato', `<input class="input" data-bind="employee.supervisor" value="${U.esc(e.supervisor)}">`, opt('supervisor'))}
@@ -6712,7 +6815,7 @@ const FormView = {
           this.flushAutosave();
           if (st.dirty && !this.canAutosave() && !(await UI.confirm('Tiene cambios que aún no ha enviado. Si sale ahora se perderán.', { title: 'Salir del formulario', ok: 'Salir sin enviar', danger: true }))) return;
           const pend = st.wasSubmitted && !!(Store.get('responses', st.response.id) || {}).editDraft;
-          st.dirty = false; App.leaveGuard = null; App.replace(`#/ingreso/${st.formId}`);
+          st.dirty = false; App.leaveGuard = null; App.replace(Access.hash(st.formId));
           if (pend) UI.toast('Sus cambios quedaron guardados, pero aún no los ha enviado. Para enviarlos, vuelva a ingresar con su cédula.', 'warn');
         },
         back: () => App.back('#/review'),
@@ -6872,7 +6975,7 @@ const FormView = {
       st.dirty = false;
       App.leaveGuard = null;
       this.stopIdle();
-      App.replace(`#/ingreso/${st.formId}`);
+      App.replace(Access.hash(st.formId));
     }, 5000);
   },
   stopIdle() {
@@ -8681,7 +8784,7 @@ const SettingsView = {
           ${card('sEstudio', 'Datos del contrato', 'Aparecen en el panel, el formulario y la portada del informe', `<div class="form-grid">
             ${txt('study.institutionName', 'Nombre de la institución')}${txt('study.name', 'Nombre del contrato', 'Ej.: Contrato de consultoría 045-2026')}
             <div class="field full"><label>Logo institucional</label><div class="row" style="align-items:center;gap:16px"><div class="logo-box" id="logoBox">${d.study.logoDataUrl ? `<img src="${d.study.logoDataUrl}" alt="Logo">` : '<span class="small muted">Sin logo</span>'}</div><div class="stack" style="gap:8px"><div class="row"><button class="btn btn-sm" data-action="logo">${icon('upload')} Cargar imagen</button><button class="btn btn-sm btn-ghost" data-action="nologo">Quitar</button></div><span class="hint">PNG o JPG. Se reduce automáticamente para guardarse localmente.</span></div></div></div>
-            <div class="field full"><label>Autorización de tratamiento de datos</label><textarea class="textarea" rows="4" data-k="study.consentText" placeholder="${U.esc(Access.consent(form ? Settings.merge(form.settings).access : Settings.merge(study.settings).access, { institutionName: d.study.institutionName }))}">${U.esc(d.study.consentText || '')}</textarea><span class="hint">Es el texto que los funcionarios marcan antes de ingresar al formulario. Si lo deja vacío se usa el texto sugerido (en gris), que nombra solo lo que pide cada formulario: foto, ubicación o dirección IP. Si escribe el suyo, revíselo cuando cambie esa configuración. Conviene que lo apruebe el área jurídica de la entidad.</span></div>
+            <div class="field full"><label>Autorización de tratamiento de datos</label><textarea class="textarea" rows="4" data-k="study.consentText" placeholder="${U.esc(Access.consent(form ? Settings.merge(form.settings).access : Settings.merge(study.settings).access, { institutionName: d.study.institutionName }))}">${U.esc(d.study.consentText || '')}</textarea><span class="hint">Es el texto que los funcionarios marcan antes de ingresar al formulario. Si lo deja vacío se usa el texto sugerido (en gris). Debajo de la casilla, la aplicación muestra siempre la información sobre protección de datos y trazabilidad, plegada; ahí se nombra lo que pide cada formulario (foto o ubicación). Conviene que el texto lo apruebe el área jurídica de la entidad.</span></div>
           </div>`)}
           ${card('sResp', 'Responsable del estudio', 'Quien elabora y firma los informes. Sus datos aparecen en el bloque de firma del informe técnico y de los informes individuales en PDF.', `<div class="grid g3">
             ${txt('study.responsibleName', 'Nombre completo')}
@@ -8783,7 +8886,7 @@ const SettingsView = {
           if (!ok) return;
           const def = U.clone(DEFAULT_SETTINGS);
           // El cuestionario y la verificación al ingresar no son parámetros de cálculo: se conservan
-          if (form) Store.update('forms', form.id, { settings: { ...def, questionnaire: form.settings.questionnaire, access: Settings.merge(form.settings).access } });
+          if (form) Store.update('forms', form.id, { settings: { ...def, questionnaire: form.settings.questionnaire, access: Settings.merge(form.settings).access, requireArea: Settings.merge(form.settings).requireArea } });
           else { def.requiredFields = study.settings.requiredFields; def.access = Settings.merge(study.settings).access; study.settings = def; Store.update('studies', study.id, {}); }
           Store.save(); UI.toast('Parámetros restaurados'); this.render(view);
         });
