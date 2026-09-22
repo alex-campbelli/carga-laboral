@@ -2428,6 +2428,14 @@ const Cloud = {
     } catch (e) { console.warn('No se pudieron revisar los cambios en la nube', e); }
     finally { this._catching = false; }
   },
+  /** Deja la copia en memoria al día con la nube antes de una copia de seguridad (por si algún aviso en vivo no llegó). */
+  async fresh() {
+    if (!this.enabled || !this.user) return;
+    while (this._catching) await new Promise(r => setTimeout(r, 100));
+    await this.catchUp();
+    clearTimeout(this._pullTimer);
+    await this.pullQueued();
+  },
   refreshSoon() {
     clearTimeout(this._rt);
     this._rt = setTimeout(() => {
@@ -6046,7 +6054,7 @@ const FormView = {
         if (btn) { btn.disabled = false; btn.textContent = btn.dataset.action === 'continue' ? 'Continuar al formulario →' : 'Ingresar →'; }
         if (d.result === 'submitted') { show('submitted', { response: { submittedAt: d.submittedAt } }); return; }
         if (d.result === 'closed' || d.result === 'preparation') { show(d.result); return; }
-        msg({ photo_required: 'La foto es obligatoria para continuar.', location_required: 'La ubicación es obligatoria para continuar.', consent_required: 'Para continuar, lea y marque la autorización de tratamiento de datos personales.', blocked: 'Hubo demasiados intentos fallidos desde esta conexión. Espere 15 minutos e intente de nuevo.', offline: 'No hay conexión con el servidor. Revise su internet e intente de nuevo.' }[d.result] || 'No fue posible ingresar. Comuníquese con el responsable del estudio.');
+        msg({ photo_required: 'La foto es obligatoria para continuar.', location_required: 'La ubicación es obligatoria para continuar.', consent_required: 'Para continuar, lea y marque la autorización de tratamiento de datos personales.', blocked: 'Hay demasiados intentos fallidos en este momento. Espere 15 minutos e intente de nuevo.', offline: 'No hay conexión con el servidor. Revise su internet e intente de nuevo.' }[d.result] || 'No fue posible ingresar. Comuníquese con el responsable del estudio.');
         return;
       }
       const c = await ctx, r = who.response, emp = who.employee, sessionId = Evidence.sessionId();
@@ -6073,7 +6081,7 @@ const FormView = {
         if (r.result === 'ok') { who = { employee: { fullName: r.firstName || '' }, response: null, doc: input.value }; if (r.needsVerify) show('verify'); else await finish(); return; }
         if (r.result === 'submitted') { show('submitted', { response: { submittedAt: r.submittedAt } }); return; }
         if (r.result === 'closed' || r.result === 'preparation') { show(r.result); return; }
-        msg({ blocked: 'Hubo demasiados intentos fallidos desde esta conexión. Espere 15 minutos e intente de nuevo.', short: 'Escriba su número de cédula completo.', duplicate: 'No fue posible verificar su identidad. Comuníquese con el responsable del estudio.', offline: 'No hay conexión con el servidor. Revise su internet e intente de nuevo.' }[r.result] || 'La cédula ingresada no está habilitada para este formulario. Verifique el número o comuníquese con el responsable del estudio.');
+        msg({ blocked: 'Hay demasiados intentos fallidos en este momento. Espere 15 minutos e intente de nuevo.', short: 'Escriba su número de cédula completo.', duplicate: 'No fue posible verificar su identidad. Comuníquese con el responsable del estudio.', offline: 'No hay conexión con el servidor. Revise su internet e intente de nuevo.' }[r.result] || 'La cédula ingresada no está habilitada para este formulario. Verifique el número o comuníquese con el responsable del estudio.');
         input.focus(); input.select();
         return;
       }
@@ -7849,6 +7857,8 @@ const Backup = {
     });
   },
   async export(scope, studyId = Store.sid()) {
+    // En línea: primero se trae de la nube lo que haya llegado (la copia debe tener todo lo guardado)
+    if (Cloud.enabled && Cloud.user) await Cloud.fresh();
     const full = scope === 'full', st = Store.get('studies', studyId) || Store.study();
     const data = t => (full ? Store.db[t] : t === 'studies' ? [st] : Store.inStudy(t, st.id));
     const tables = ['studies', ...Exporter.CONTRACT_TABLES];
