@@ -47,6 +47,8 @@ p{margin:0 0 .6em}
 .brand{display:flex;gap:12px;align-items:center;padding:20px 20px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
 .brand-mark{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,#2B8299,#0D5C6E);display:grid;place-items:center;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(255,255,255,.15)}
 .brand-mark svg{width:22px;height:22px}
+.brand-mark.logo{background:#fff;padding:5px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35),0 1px 3px rgba(0,0,0,.18)}
+.brand-mark.logo img{width:100%;height:100%;object-fit:contain;display:block}
 .brand-title{font-weight:700;font-size:14px;color:#fff;letter-spacing:.02em;line-height:1.2}
 .brand-sub{font-size:11px;color:#9FC0C8;margin-top:2px}
 /* Títulos de sección de la barra lateral (contexto y grupos de navegación) */
@@ -101,6 +103,9 @@ p{margin:0 0 .6em}
 .user-status::before{content:"";width:7px;height:7px;border-radius:50%;background:#4CC38A;flex:0 0 auto}
 .user-card>svg{width:16px;height:16px;color:#9FC0C8;flex:0 0 auto}
 .side-version{text-align:center;font-size:10.5px;color:#6F969F;margin-top:9px}
+.side-sign{display:flex;align-items:center;justify-content:center;gap:4px;font-size:10.5px;line-height:1.3;color:#8FB3BC;white-space:nowrap}
+.side-sign b{font-weight:600;letter-spacing:.02em;color:#CFE4E9}
+.side-sign i{font-style:normal;opacity:.6}
 .nav a{display:flex;align-items:center;gap:10px;padding:9px 10px 9px 12px;border-radius:8px;color:#D6E6EA;text-decoration:none;font-size:13.5px;line-height:1.25}
 .nav a svg{width:18px;height:18px;opacity:.85;flex:0 0 auto}
 .nav a:hover{background:rgba(255,255,255,.06);color:#fff}
@@ -404,6 +409,25 @@ tr.detail-row td{background:var(--surface-2);padding:14px 18px}
 .em-sec-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--primary);margin-bottom:10px}
 .em-sec-title svg{width:15px;height:15px;flex:0 0 auto}
 .em-assign{margin-top:18px;padding:11px 13px;border:1px solid var(--primary-100);background:var(--primary-50);border-radius:10px}
+.scope-chip{display:inline-flex;align-items:center;height:19px;padding:0 9px;margin-left:10px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;background:var(--surface-3);color:var(--muted);vertical-align:middle;white-space:nowrap}
+.scope-chip.scope-form{background:var(--primary-50);color:var(--primary)}
+.fi-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;align-items:start}
+.fi-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 24px}
+.fi-fields.fi-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.fi-l{font-size:12px;font-weight:500;color:var(--muted)}
+.fi-v{margin-top:3px;font-size:14.5px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.fi-none{font-weight:500;color:var(--muted);opacity:.85}
+.fi-title{display:flex;align-items:center;gap:8px}
+.fi-title svg{width:17px;height:17px;flex:0 0 auto;color:var(--primary)}
+.fi-doc{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--primary-50);border:1px solid var(--primary-100)}
+.fi-doc svg{width:20px;height:20px;flex:0 0 auto;color:var(--primary)}
+.fi-big{margin-top:2px;font-size:19px;font-weight:700;color:var(--text);overflow-wrap:anywhere}
+.fi-note{display:flex;gap:8px;margin-top:18px;padding:10px 12px;border-radius:10px;background:var(--surface-2);font-size:12.5px;line-height:1.5;color:var(--text-2)}
+.fi-note svg{width:15px;height:15px;margin-top:2px;flex:0 0 auto;color:var(--muted)}
+.fi-notes{margin-top:18px;padding-top:14px;border-top:1px solid var(--border)}
+.fi-notes p{margin:4px 0 0;font-size:13.5px;line-height:1.55;color:var(--text);white-space:pre-line}
+@media (max-width:980px){.fi-grid{grid-template-columns:1fr}.fi-fields.fi-3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.fi-fields,.fi-fields.fi-3{grid-template-columns:1fr}}
 @media (max-width:560px){.em-head .avatar{width:40px;height:40px;font-size:14px}.em-sec{margin-top:16px}}
 .act-card{border:1px solid var(--border);border-radius:12px;background:#fff;box-shadow:var(--shadow);overflow:hidden}
 .act-card+.act-card{margin-top:14px}
@@ -784,6 +808,16 @@ tr.row-selected td{background:#F1F8FA}
 .gate-card{margin-top:14px}
 .gate-body{padding:34px 28px 28px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px}
 .gate-ico{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;background:var(--primary-50);color:var(--primary)}
+.load-ring{position:relative;width:62px;height:62px;display:grid;place-items:center;margin:0 auto}
+.load-ring::before{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid var(--primary-100);border-top-color:var(--primary);animation:load-spin 1s linear infinite}
+.load-ring svg{width:24px;height:24px;color:var(--primary)}
+.load-text{animation:load-fade 1.6s ease-in-out infinite}
+.load-bar{width:min(260px,72%);height:4px;border-radius:999px;background:var(--surface-3);overflow:hidden;margin:2px auto 0}
+.load-bar span{display:block;width:38%;height:100%;border-radius:999px;background:var(--primary);animation:load-slide 1.3s ease-in-out infinite}
+@keyframes load-spin{to{transform:rotate(360deg)}}
+@keyframes load-slide{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
+@keyframes load-fade{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.load-ring::before,.load-bar span,.load-text{animation:none}}
 .gate-ico svg{width:28px;height:28px}
 .gate-ico.ok{background:var(--ok-bg);color:var(--ok)}
 .gate-ico.bad{background:var(--bad-bg);color:var(--bad)}
@@ -1718,13 +1752,11 @@ const Settings = {
   },
   /** Parámetros vigentes: los del formulario activo (o los valores por defecto del contrato si no hay formulario). */
   current() { return this.forForm(Store.fid()); },
-  /** Parámetros de cálculo de un formulario + campos obligatorios definidos en el contrato. */
+  /** Parámetros de un formulario (cálculo, campos obligatorios y cuestionario); si no hay, los del contrato. */
   forForm(formId) {
     const f = formId ? Store.get('forms', formId) : null;
     const study = (f && Store.get('studies', f.studyId)) || Store.study();
-    const params = Settings.merge(f ? f.settings : study.settings);
-    params.requiredFields = Settings.merge(study.settings).requiredFields;
-    return params;
+    return Settings.merge(f ? f.settings : study.settings);
   },
   /** Copia resumida de los parámetros usados en un cálculo (trazabilidad). */
   snapshot(s) {
@@ -1985,7 +2017,16 @@ const Store = {
       Responsible.FIELDS.forEach(k => { if (s[k] == null) s[k] = k === 'responsibleIdType' ? 'CC' : ''; });
       if (s.consentText == null) s.consentText = '';
     });
-    db.forms.forEach(f => { f.settings = Settings.merge(f.settings); if (!f.status) f.status = 'open'; ['request', 'requestedBy', 'period', 'startDate', 'endDate'].forEach(k => { if (f[k] == null) f[k] = ''; }); });
+    db.forms.forEach(f => {
+      // Los campos obligatorios pasaron del contrato a cada formulario: los que ya existían conservan lo configurado
+      if (!f.settings || !f.settings.requiredFields) {
+        const st = db.studies.find(s => s.id === f.studyId);
+        if (st && st.settings && st.settings.requiredFields) f.settings = { ...(f.settings || {}), requiredFields: { ...st.settings.requiredFields } };
+      }
+      f.settings = Settings.merge(f.settings);
+      if (!f.status) f.status = 'open';
+      ['request', 'requestedBy', 'period', 'startDate', 'endDate'].forEach(k => { if (f[k] == null) f[k] = ''; });
+    });
     // La verificación al ingresar pasó del contrato a cada formulario: se conserva lo que ya estaba configurado
     if (!db.meta.accessPerForm) {
       const isDefault = a => a.photo === 'off' && a.location === 'off' && a.ip !== false;
@@ -2597,6 +2638,23 @@ const Cloud = {
     await this.catchUp();
     clearTimeout(this._pullTimer);
     await this.pullQueued();
+    // Repaso completo: lo que no se haya tocado aquí se pone igual a la nube, columna por columna.
+    // Lo que esté pendiente de guardar en este equipo se respeta y se sube después.
+    for (const t of this.ORDER) {
+      let rows;
+      try { rows = await this.fetchAll(t); }
+      catch (e) { console.warn('No se pudo repasar ' + t + ' antes de la copia', e); return; }
+      const local = new Map(Store.db[t].map(r => [r.id, r]));
+      const snaps = new Map();
+      rows.forEach(row => {
+        const rec = this.fromRow(t, row), cur = local.get(rec.id);
+        const prev = this.synced[t] ? this.synced[t].get(rec.id) : null;
+        if (!cur) Store.db[t].push(rec);
+        else if (!prev || !this.changed(t, this.snapOf(t, this.toRow(t, cur)), prev).length) Object.assign(cur, rec);
+        snaps.set(rec.id, this.snapOf(t, this.toRow(t, rec)));
+      });
+      this.synced[t] = snaps;
+    }
   },
   refreshSoon() {
     clearTimeout(this._rt);
@@ -3745,11 +3803,23 @@ const App = {
     this.initShell();
     Cloud.setStatus(Cloud.status === 'pending' ? 'pending' : 'ok');
   },
+  /** Símbolo de Dussan System en el menú: arriba, en lugar del «+», y la firma al pie. */
+  brandShell() {
+    const mk = $('.brand-mark');
+    if (mk && !$('img', mk)) { mk.classList.add('logo'); mk.innerHTML = `<img src="${Login.MARK}" alt="Dussan System">`; }
+    const v = $('.side-version');
+    if (v && !$('.side-sign', v)) v.innerHTML = `<span class="side-sign"><b>Dussan System</b><i>·</i>${U.esc(v.textContent.trim())}</span>`;
+  },
   loading(text) {
     document.body.classList.add('kiosk');
-    $('#view').innerHTML = `<div class="form-wrap gate-wrap"><div class="card gate-card"><div class="gate-body"><div class="gate-ico">${icon('clock')}</div><p class="gate-text">${U.esc(text)}</p></div></div></div>`;
+    $('#view').innerHTML = `<div class="form-wrap gate-wrap"><div class="card gate-card"><div class="gate-body">
+      <div class="load-ring">${icon('clock')}</div>
+      <p class="gate-text load-text">${U.esc(text)}</p>
+      <div class="load-bar"><span></span></div>
+    </div></div></div>`;
   },
   initShell() {
+    this.brandShell();
     this.renderNav();
     $('#userCard').onclick = () => this.editUser();
     // Menú lateral: se contrae a una barra de íconos desde su encabezado; la preferencia se recuerda en este navegador
@@ -3906,7 +3976,7 @@ const App = {
       [/^#\/employees$/, () => Views.employees(view)],
       [/^#\/employee\/([\w-]+)$/, m => Views.detail(view, m[1])],
       [/^#\/forms$/, () => FormsView.list(view)],
-      [/^#\/formulario(?:\/(vista|apariencia))?$/, m => FormsView.area(view, m[1])],
+      [/^#\/formulario(?:\/(vista|apariencia|parametros))?$/, m => FormsView.area(view, m[1])],
       [/^#\/forms\/new$/, () => FormsView.edit(view, null)],
       [/^#\/forms\/([\w-]+)\/edit$/, m => FormsView.edit(view, m[1])],
       [/^#\/forms\/([\w-]+)$/, m => FormsView.detail(view, m[1])],
@@ -3920,7 +3990,7 @@ const App = {
       [/^#\/analysis(?:\/(\w+))?$/, m => AnalysisView.render(view, m[1] || 'institucional')],
       [/^#\/report$/, () => ReportView.render(view)],
       [/^#\/export$/, () => ExportView.render(view)],
-      [/^#\/settings$/, () => SettingsView.render(view)],
+      [/^#\/settings$/, () => SettingsView.render(view, 'contrato')],
       [/^#\/(contracts|studies)$/, () => StudiesView.render(view)],
     ];
     const r = routes.find(([re]) => re.test(path));
@@ -4070,7 +4140,7 @@ const Views = {
         <div class="di-items">${infoItem('Solicitado por', U.esc(form.requestedBy || '—'))}${infoItem('Creado', U.fmtDate(form.createdAt))}</div>
       </div>
       <div class="di-block">
-        <div class="di-title">Parámetros de este formulario <a class="di-link" href="#/settings">Ajustar</a></div>
+        <div class="di-title">Parámetros de este formulario <a class="di-link" href="#/formulario/parametros">Ajustar</a></div>
         <div class="di-items">
           ${infoItem('Jornada', `${U.fmt(s.hoursPerDay, 2)} h/día · ${U.fmt(s.daysPerMonth, 2)} días/mes`)}
           ${infoItem('Capacidad mensual', `${U.fmt(cap)} min`)}
@@ -4886,6 +4956,12 @@ const Views = {
     if (!emp || emp.studyId !== Store.sid()) { view.innerHTML = UI.empty('Funcionario no encontrado', 'Es posible que haya sido eliminado o pertenezca a otro contrato.', '<a class="btn" href="#/employees">Volver</a>'); return; }
     const estado = CATALOG.employeeStatus[emp.status];
     const dept = Domain.deptName(emp.departmentId);
+    // Los datos se agrupan por contexto; lo que no está registrado se dice con palabras, no con un guion
+    const doc = String(emp.documentId || '').trim();
+    const docFmt = /^\d{4,}$/.test(doc) ? Number(doc).toLocaleString('es-CO') : doc;
+    const escrito = String(emp.departmentText || '').trim();
+    const fi = (label, v, none = 'No registrado') => `<div class="fi"><div class="fi-l">${label}</div>${String(v ?? '').trim() ? `<div class="fi-v">${U.esc(v)}</div>` : `<div class="fi-v fi-none">${none}</div>`}</div>`;
+    const head = (ic, title, sub = '') => `<div class="card-head"><div><div class="card-title fi-title">${icon(ic)} ${title}</div>${sub ? `<div class="card-sub">${sub}</div>` : ''}</div></div>`;
     view.innerHTML = `<div class="crumbs"><a href="#/employees">Funcionarios</a> / ${U.esc(emp.fullName)}</div>
       <div class="card card-pad"><div class="person-head">
         <div class="avatar">${U.esc(U.initials(emp.fullName))}</div>
@@ -4893,14 +4969,35 @@ const Views = {
           <div class="row" style="margin-top:8px">${UI.badge(estado.label, estado.tone)}</div></div>
         <div class="page-actions"><button class="btn" data-action="editEmp">${icon('edit')} Editar datos</button><button class="btn btn-danger" data-action="del" title="Eliminar funcionario">${icon('trash')} Eliminar</button></div>
       </div></div><div class="sp"></div>
-      <div class="card"><div class="card-head"><div class="card-title">Datos personales y laborales</div></div><div class="card-body"><dl class="dl">
-        <dt>Documento</dt><dd>${U.esc(emp.documentId || '—')}</dd><dt>Área</dt><dd>${U.esc(dept)}</dd><dt>Cargo</dt><dd>${U.esc(emp.position || '—')}</dd>
-        <dt>Tipo de vinculación</dt><dd>${U.esc(CATALOG.label('contractTypes', emp.contractType) || '—')}</dd><dt>Jefe inmediato</dt><dd>${U.esc(emp.supervisor || '—')}</dd>
-        <dt>Antigüedad</dt><dd>${U.esc(CATALOG.label('seniority', emp.seniority) || '—')}</dd><dt>Formación académica</dt><dd>${U.esc(CATALOG.label('education', emp.education) || '—')}</dd>
-        <dt>Correo</dt><dd>${U.esc(emp.email || '—')}</dd><dt>Teléfono</dt><dd>${U.esc(emp.phone || '—')}</dd><dt>Estado</dt><dd>${U.esc(estado.label)}</dd>
-        ${emp.notes ? `<dt>Observaciones</dt><dd>${U.esc(emp.notes)}</dd>` : ''}
-        <dt>Registrado</dt><dd>${U.fmtDate(emp.createdAt)}</dd><dt>Última actualización</dt><dd>${U.fmtDate(emp.updatedAt || emp.createdAt)}</dd>
-      </dl></div></div>`;
+      <div class="fi-grid">
+        <div class="card">${head('building', 'Información laboral', 'Su cargo y su vinculación en la institución')}
+          <div class="card-body">
+            <div class="fi-fields">
+              ${fi('Cargo', emp.position)}
+              ${fi('Área', dept === 'Sin área' ? '' : dept, 'Sin área')}
+              ${fi('Tipo de vinculación', CATALOG.label('contractTypes', emp.contractType))}
+              ${fi('Jefe inmediato', emp.supervisor)}
+              ${fi('Antigüedad en la entidad', CATALOG.label('seniority', emp.seniority), 'No registrada')}
+              ${fi('Formación académica', CATALOG.label('education', emp.education), 'No registrada')}
+            </div>
+            ${escrito ? `<div class="fi-note">${icon('info')}<span>Escribió «${U.esc(escrito)}» como su área al diligenciar el formulario. Usted decide si la agrega en <a href="#/settings">Configuración → Áreas</a>.</span></div>` : ''}
+          </div></div>
+        <div class="stack">
+          <div class="card">${head('idCard', 'Identificación')}
+            <div class="card-body"><div class="fi-doc">${icon('idCard')}<div><div class="fi-l">Documento</div><div class="fi-big">${doc ? U.esc(docFmt) : '<span class="fi-none">No registrado</span>'}</div></div></div></div></div>
+          <div class="card">${head('globe', 'Contacto')}
+            <div class="card-body"><div class="fi-fields">${fi('Correo electrónico', emp.email)}${fi('Teléfono', emp.phone)}</div></div></div>
+        </div>
+      </div><div class="sp"></div>
+      <div class="card">${head('clock', 'Registro')}
+        <div class="card-body">
+          <div class="fi-fields fi-3">
+            <div class="fi"><div class="fi-l">Estado</div><div style="margin-top:5px">${UI.badge(estado.label, estado.tone)}</div></div>
+            ${fi('Registrado', U.fmtDate(emp.createdAt))}
+            ${fi('Última actualización', U.fmtDate(emp.updatedAt || emp.createdAt))}
+          </div>
+          ${emp.notes ? `<div class="fi-notes"><div class="fi-l">Observaciones (solo las ve usted)</div><p>${U.esc(emp.notes)}</p></div>` : ''}
+        </div></div>`;
     UI.bind(view, {
       click: {
         editEmp: () => EmployeeModal.open(emp, () => App.route(true)),
@@ -5332,6 +5429,8 @@ const FormsView = {
     const form = Store.form();
     if (!form) { Views.noForm(view, 'Formulario', 'Formulario del estudio'); return; }
     if (tab === 'vista' || tab === 'apariencia') { this.areaAppearance(view, form); return; }
+    // Parámetros de este formulario (cálculo, clasificación, factores, alertas y campos obligatorios)
+    if (tab === 'parametros') { SettingsView.render(view, 'formulario'); return; }
     this.edit(view, form.id, true);
   },
   /** Guardado automático de la sección Formulario: sin botones de guardar ni avisos al cambiar de pestaña. */
@@ -5345,10 +5444,10 @@ const FormsView = {
     App.leaveGuard = guard;
     return { schedule, flush, guard };
   },
-  areaHead(form, tab = '') {
-    const tabs = [['', 'Datos y cuestionario'], ['apariencia', 'Vista']];
+  areaHead(form, tab = '', right) {
+    const tabs = [['', 'Datos y cuestionario'], ['parametros', 'Parámetros'], ['apariencia', 'Vista']];
     return Views.pageHead('Formulario del estudio', U.esc(form.name), 'Datos de la solicitud, cuestionario, vista y apariencia del formulario del estudio elegido en «Estudio activo». Para crear, duplicar, cerrar o eliminar formularios use Gestión de formularios.') +
-      `<div class="tabs">${tabs.map(([k, l]) => `<a class="tab ${k === tab ? 'active' : ''}" href="#/formulario${k ? '/' + k : ''}">${l}</a>`).join('')}<span class="autosave ok" id="autosaveState">✓ Los cambios se guardan automáticamente</span></div>`;
+      `<div class="tabs">${tabs.map(([k, l]) => `<a class="tab ${k === tab ? 'active' : ''}" href="#/formulario${k ? '/' + k : ''}">${l}</a>`).join('')}${right !== undefined ? right : '<span class="autosave ok" id="autosaveState">✓ Los cambios se guardan automáticamente</span>'}</div>`;
   },
   previewUrl(form) { return `${location.href.split('#')[0]}#/form/${form.id}/new?modo=funcionario&vista=previa`; },
 
@@ -5453,7 +5552,7 @@ const FormsView = {
         </div>
         <div class="q-verify">
           <div class="q-group-title">Datos del funcionario</div>
-          <div class="q-group-sub">Lo que ya está en su ficha se le muestra fijo; esto decide qué debe completar si le falta. Cargo, vinculación, jefe, antigüedad y formación se marcan obligatorios en <a href="#/settings">Configuración → Campos de identificación obligatorios</a>.</div>
+          <div class="q-group-sub">Lo que ya está en su ficha se le muestra fijo; esto decide qué debe completar si le falta. Cargo, vinculación, jefe, antigüedad y formación se marcan obligatorios en <a href="#/formulario/parametros">Parámetros</a>, aquí mismo.</div>
           <div class="q-verify-grid">
             <label class="q-vitem"><span class="acc-ico">${icon('users')}</span><span><b>Área</b><span class="q-impact">Si se exige, quien no la tenga registrada debe elegirla para poder enviar. Si no, sus respuestas quedan en «Sin área» en el análisis y el informe.</span></span><select class="select" data-change="reqArea" aria-label="¿El área es obligatoria?"><option value="1">Obligatoria</option><option value="0">Opcional</option></select></label>
             <label class="q-vitem"><span class="acc-ico">${icon('edit')}</span><span><b>Cómo indica el área</b><span class="q-impact">Con la lista elige entre las áreas que usted tiene guardadas en Configuración. Si la escribe, pone la suya con sus palabras: cuando coincide con un área que ya existe se agrupa con ella y, si no, se crea y usted la ve en Configuración → Áreas.</span></span><select class="select" data-change="areaFree" aria-label="¿Cómo indica el área el funcionario?"><option value="0">La elige de la lista</option><option value="1">La escribe el funcionario</option></select></label>
@@ -5474,7 +5573,7 @@ const FormsView = {
     view.innerHTML = (area
       ? this.areaHead(existing, '')
       : `<div class="crumbs"><a href="#/forms">Gestión de formularios</a> / ${existing ? U.esc(existing.name) + ' / Editar' : 'Nuevo formulario'}</div>` +
-        Views.pageHead('Gestión de formularios', existing ? 'Editar formulario' : 'Nuevo formulario', 'Registre los datos de la solicitud de medición y elija el cuestionario. Los parámetros de cálculo se ajustan en Configuración.')) + `
+        Views.pageHead('Gestión de formularios', existing ? 'Editar formulario' : 'Nuevo formulario', 'Registre los datos de la solicitud de medición y elija el cuestionario. Los parámetros de cálculo se ajustan después en Formulario → Parámetros.')) + `
       <div class="grid ${existing ? '' : 'g-2-1'}" style="align-items:start">
         <div class="stack">
           <div class="card"><div class="card-head"><div class="card-title">Datos de la solicitud</div>${existing ? `<span class="small muted">Creado el ${U.fmtDate(existing.createdAt)}</span>` : ''}</div><div class="card-body"><div class="form-grid req-grid">
@@ -5497,7 +5596,7 @@ const FormsView = {
           </div></div>`}
         </div>
         ${existing ? '' : `<div class="stack"><div class="card"><div class="card-head"><div class="card-title">Parámetros de cálculo</div></div><div class="card-body stack">
-            <div class="field"><label for="fCopy">Tomar parámetros de</label><select class="select" id="fCopy">${UI.options([['_contract', 'Valores por defecto del contrato'], ...forms.map(x => [x.id, x.name])], forms[0] ? forms[0].id : '_contract', null)}</select><span class="hint">Horas y días laborales, umbrales, factores de frecuencia y alertas. Se pueden ajustar luego en Configuración.</span></div>
+            <div class="field"><label for="fCopy">Tomar parámetros de</label><select class="select" id="fCopy">${UI.options([['_contract', 'Valores por defecto de la aplicación'], ...forms.map(x => [x.id, x.name])], forms[0] ? forms[0].id : '_contract', null)}</select><span class="hint">Horas y días laborales, umbrales, factores de frecuencia, alertas y campos obligatorios. Se ajustan después en Formulario → Parámetros, y solo afectan a este formulario.</span></div>
           </div></div></div>`}
       </div>
       <div class="sp"></div>${qCard}
@@ -5554,7 +5653,7 @@ const FormsView = {
           if (mode === 'pick' && !selected.size) { UI.toast('Seleccione al menos un participante o elija «Ninguno por ahora».', 'warn'); return; }
           if (Store.get('forms', f.id)) return;
           const src = $('#fCopy').value;
-          f.settings = Settings.merge(U.clone(src === '_contract' ? Store.study().settings : Store.get('forms', src).settings));
+          f.settings = Settings.merge(U.clone(src === '_contract' ? DEFAULT_SETTINGS : Store.get('forms', src).settings));
           f.settings.questionnaire = qCfg();
           f.settings.access = aCfg();
           f.settings.requireArea = reqArea;
@@ -6271,7 +6370,7 @@ const FormView = {
     this.stopIdle();
     // En línea, otro formulario: primero se consultan sus datos públicos
     if (Remote.active && Remote.formId !== formId) {
-      view.innerHTML = '<div class="form-wrap gate-wrap"><p class="gate-text">Cargando…</p></div>';
+      App.loading('Abriendo el formulario…');
       Remote.loadForm(formId).then(ok => { if (ok) this.gate(view, formId, params, opts); else view.innerHTML = `<div class="form-wrap">${UI.empty('Formulario no disponible', 'El enlace no es válido o el formulario ya no existe. Comuníquese con el responsable del estudio.')}</div>`; });
       return;
     }
@@ -8670,7 +8769,7 @@ const Exporter = {
       'Nombre completo': e.fullName, 'Documento': e.documentId, 'Área': Domain.deptName(e.departmentId), 'Cargo': e.position,
       'Tipo de vinculación': CATALOG.label('contractTypes', e.contractType), 'Jefe inmediato': e.supervisor, 'Antigüedad': CATALOG.label('seniority', e.seniority),
       'Formación académica': CATALOG.label('education', e.education), 'Correo': e.email, 'Teléfono': e.phone, 'Estado': CATALOG.employeeStatus[e.status].label,
-      'Observaciones': e.notes, 'Formularios': formsCount.get(e.id) || 0, 'ID': e.id,
+      'Observaciones': e.notes, 'Área escrita por el funcionario': e.departmentText || '', 'Formularios': formsCount.get(e.id) || 0, 'ID': e.id,
     }));
   },
   paramsRows() {
@@ -8706,7 +8805,7 @@ const Exporter = {
   async employeesWorkbook(template = false) {
     const st = Store.study();
     const cols = EmployeeImport.COLUMNS.map(c => c[1]);
-    const header = template ? cols : [...cols, 'Formularios', 'ID'];
+    const header = template ? cols : [...cols, 'Área escrita por el funcionario', 'Formularios', 'ID'];
     let rows;
     if (template) rows = [header, ['Nombre Apellido Ejemplo', '12345678', 'Facturación', 'Auxiliar de facturación', 'Carrera administrativa', 'Coordinador de facturación', 'De 3 a 5 años', 'Técnico', 'correo@entidad.gov.co', '3000000000', 'Activo', 'Fila de ejemplo: reemplácela por los datos reales']];
     else { const data = this.employeesRows(); rows = [header, ...data.map(r => header.map(h => r[h]))]; }
@@ -8736,6 +8835,7 @@ const Exporter = {
       ['4', 'Si escribe un área que no existe, se creará automáticamente al importar.'],
       ['5', 'Al importar, los funcionarios con el mismo documento (o el mismo ID) se actualizan; las celdas vacías no borran datos existentes.'],
       ['6', 'Importe el archivo desde Funcionarios → Cargue masivo.'],
+      ['7', 'En la base exportada, «Área escrita por el funcionario» es lo que escribió cada uno en su formulario cuando aún no tiene área asignada. Es informativa: al importar no se tiene en cuenta.'],
     ];
     const sheets = [
       { name: 'Funcionarios', rows, validations, colStyles: { [idx('Documento')]: 6, [idx('Teléfono')]: 6 } },
@@ -8848,21 +8948,32 @@ const ExportView = {
 /* =====================================================================
    16 CONFIGURACIÓN Y GESTIÓN DE CONTRATOS
    ===================================================================== */
+const DEL_FORM = new Set(['sParam', 'sClas', 'sFreq', 'sAlert', 'sReq']);
 const SettingsView = {
   draft: null,
-  render(view) {
+  scope: 'all',
+  render(view, scope = 'all') {
     const study = Store.study(), form = Store.form();
+    // «formulario»: lo que se guarda en el formulario activo · «contrato»: lo de la institución
+    this.scope = scope;
+    const soloForm = scope === 'formulario';
+    const show = id => scope === 'all' || DEL_FORM.has(id) === soloForm;
     // study: datos del contrato · p: parámetros del formulario activo (o valores por defecto del contrato)
-    const d = this.draft = { study: U.clone(study), p: Settings.merge(U.clone(form ? form.settings : study.settings)), alsoDefault: false, syncResp: true };
+    const d = this.draft = { study: U.clone(study), p: Settings.merge(U.clone(form ? form.settings : study.settings)), syncResp: true };
     const s = d.p;
     const target = form ? `del formulario «${U.esc(form.name)}»` : 'por defecto del contrato';
     const num = (k, label, hint = '', step = 'any') => `<div class="field"><label>${label}</label><input class="input" type="number" step="${step}" min="0" data-k="${k}" value="${U.getPath(d, k) ?? ''}">${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
     const txt = (k, label, hint = '') => `<div class="field"><label>${label}</label><input class="input" data-k="${k}" value="${U.esc(U.getPath(d, k) ?? '')}">${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
     const otherResp = Store.db.studies.filter(x => x.id !== study.id && U.normalize(x.responsibleName) && U.normalize(x.responsibleName) === U.normalize(study.responsibleName)).length;
-    const card = (id, title, sub, body) => `<div class="card" id="${id}"><div class="card-head"><div><div class="card-title">${title}</div>${sub ? `<div class="card-sub">${sub}</div>` : ''}</div></div><div class="card-body">${body}</div></div>`;
-    view.innerHTML = Views.pageHead('Administración', 'CONFIGURACIÓN', `Contrato <b>${U.esc(study.institutionName)}</b> · ${Views.formContext(form)}. Los parámetros no están fijos en el código: se guardan por formulario y se aplican a todos sus cálculos.`, `<button class="btn btn-primary" data-action="save">${icon('check')} Guardar configuración</button>`) + `
+    // Etiqueta de alcance: lo que se guarda en el formulario activo y lo que es de todo el contrato
+    const chip = id => (form && scope === 'all' ? `<span class="scope-chip ${DEL_FORM.has(id) ? 'scope-form' : ''}">${DEL_FORM.has(id) ? 'Del formulario' : 'Del contrato'}</span>` : '');
+    const card = (id, title, sub, body) => (show(id) ? `<div class="card" id="${id}"><div class="card-head"><div><div class="card-title">${title}${chip(id)}</div>${sub ? `<div class="card-sub">${sub}</div>` : ''}</div></div><div class="card-body">${body}</div></div>` : '');
+    const NAV = [['sEstudio', 'Datos del contrato'], ['sResp', 'Responsable del estudio'], ['sParam', 'Parámetros de tiempo'], ['sClas', 'Clasificación y metodología'], ['sFreq', 'Factores de frecuencia'], ['sAlert', 'Alertas'], ['sReq', 'Campos obligatorios'], ['sDept', 'Áreas']].filter(([id]) => show(id));
+    view.innerHTML = (soloForm
+      ? FormsView.areaHead(form, 'parametros', `<button class="btn btn-primary" data-action="save">${icon('check')} Guardar parámetros</button>`)
+      : Views.pageHead('Administración', 'CONFIGURACIÓN', `Contrato <b>${U.esc(study.institutionName)}</b>. Datos de la institución, responsable del estudio y áreas. Los parámetros de cálculo y los campos obligatorios de cada medición están en <a href="#/formulario/parametros">Formulario → Parámetros</a>.`, `<button class="btn btn-primary" data-action="save">${icon('check')} Guardar configuración</button>`)) + `
       <div class="grid" style="grid-template-columns:200px minmax(0,1fr);align-items:start" id="settingsGrid">
-        <nav class="settings-nav"><a href="javascript:void 0" data-action="jump" data-t="sEstudio">Datos del contrato</a><a href="javascript:void 0" data-action="jump" data-t="sResp">Responsable del estudio</a><a href="javascript:void 0" data-action="jump" data-t="sParam">Parámetros de tiempo</a><a href="javascript:void 0" data-action="jump" data-t="sClas">Clasificación y metodología</a><a href="javascript:void 0" data-action="jump" data-t="sFreq">Factores de frecuencia</a><a href="javascript:void 0" data-action="jump" data-t="sAlert">Alertas</a><a href="javascript:void 0" data-action="jump" data-t="sReq">Campos obligatorios</a><a href="javascript:void 0" data-action="jump" data-t="sDept">Áreas</a></nav>
+        <nav class="settings-nav">${NAV.map(([id, l]) => `<a href="javascript:void 0" data-action="jump" data-t="${id}">${l}</a>`).join('')}</nav>
         <div class="stack">
           ${card('sEstudio', 'Datos del contrato', 'Aparecen en el panel, el formulario y la portada del informe', `<div class="form-grid">
             ${txt('study.institutionName', 'Nombre de la institución')}${txt('study.name', 'Nombre del contrato', 'Ej.: Contrato de consultoría 045-2026')}
@@ -8890,7 +9001,7 @@ const SettingsView = {
               <span class="hint" id="signHint" hidden>Arrastre la firma para moverla. Con el teclado: flechas para moverla y + o − para el tamaño.</span></div>
           </div>
           ${otherResp ? `<label class="switch" style="margin-top:14px"><input type="checkbox" data-k="syncResp" checked> Actualizar también estos datos en ${U.plural(otherResp, 'el otro contrato', 'los otros contratos')} de este responsable</label>` : ''}`)}
-          <div class="alert ${form && form.status !== 'closed' ? 'alert-info' : 'alert-warn'}"><span class="alert-ico">${form && form.status !== 'closed' ? 'ℹ️' : '⚠️'}</span><div><div class="alert-title">PARÁMETROS ${form ? 'DEL FORMULARIO ACTIVO' : 'POR DEFECTO DEL CONTRATO'}</div>${form ? (form.status === 'closed' ? `<b>${U.esc(form.name)}</b> está cerrado: sus parámetros quedan fijos para que sus resultados no cambien. Si necesita modificarlos, vuelva a abrir el formulario en Gestión de formularios.` : `Las secciones siguientes se aplican a <b>${U.esc(form.name)}</b>. Para ajustar otro formulario, cámbielo en el menú lateral.`) : 'No hay un formulario activo: los valores se guardarán como predeterminados para los nuevos formularios del contrato.'}</div></div>
+          ${soloForm ? `<div class="alert ${form.status !== 'closed' ? 'alert-info' : 'alert-warn'}"><span class="alert-ico">${form.status !== 'closed' ? 'ℹ️' : '⚠️'}</span><div><div class="alert-title">PARÁMETROS DE ESTE FORMULARIO</div>${form.status === 'closed' ? `<b>${U.esc(form.name)}</b> está cerrado: sus parámetros quedan fijos para que sus resultados no cambien. Si necesita modificarlos, vuelva a abrir el formulario en Gestión de formularios.` : `Lo que ajuste aquí se aplica solo a <b>${U.esc(form.name)}</b> y a los resultados de esta medición. Para ajustar otro formulario, cámbielo en «Estudio activo», en el menú lateral.`}</div></div>` : ''}
           ${card('sParam', `Parámetros de tiempo laboral ${target}`, 'Capacidad mensual de referencia por funcionario', `<div class="grid g3">
             ${num('p.hoursPerDay', 'Horas laborales diarias')}${num('p.daysPerMonth', 'Días laborales mensuales')}${num('p.weeksPerMonth', 'Semanas por mes', 'Usada en «varias veces por semana»')}
           </div><div class="sp"></div>
@@ -8912,10 +9023,9 @@ const SettingsView = {
             ${num('p.alerts.lowTotalLoadPct', 'Carga total baja para revisión (%)', 'Solo para el indicador de calidad; no se muestra al funcionario')}
             ${num('p.alerts.minActivities', 'Mínimo de actividades esperado', '', '1')}
           </div>`)}
-          ${form ? `<label class="check card card-pad" style="margin:0"><input type="checkbox" data-k="alsoDefault"><span>Guardar también estos parámetros como <b>valores por defecto del contrato</b> para los nuevos formularios</span></label>` : ''}
-          ${card('sReq', 'Campos de identificación obligatorios', 'Del paso 1 del formulario: marque lo que el funcionario debe completar para poder enviar. Aplican a todo el contrato. El nombre siempre es obligatorio y el área se configura en cada formulario.', `<div class="grid g3">${Validate.ID_FIELDS.map(([k, l]) => `<label class="switch"><input type="checkbox" data-k="study.settings.requiredFields.${k}" ${d.study.settings.requiredFields[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>`)}
-          <div class="card" id="sDept"><div class="card-head"><div><div class="card-title">Áreas del contrato</div><div class="card-sub">Ej.: Facturación, Urgencias, Laboratorio, Talento Humano. Los funcionarios eligen la suya en el formulario; los cambios se guardan inmediatamente</div></div></div><div class="card-body" id="deptBox"></div></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn btn-ghost" data-action="defaults">Restaurar parámetros por defecto</button><button class="btn btn-primary btn-lg" data-action="save">${icon('check')} Guardar configuración</button></div>
+          ${card('sReq', 'Campos de identificación obligatorios', 'Del paso 1 del formulario: marque lo que el funcionario debe completar para poder enviar. El nombre siempre es obligatorio; el área se configura en la pestaña «Datos y cuestionario».', `<div class="grid g3">${Validate.ID_FIELDS.map(([k, l]) => `<label class="switch"><input type="checkbox" data-k="p.requiredFields.${k}" ${s.requiredFields[k] ? 'checked' : ''}> ${l}</label>`).join('')}</div>`)}
+          ${show('sDept') ? `<div class="card" id="sDept"><div class="card-head"><div><div class="card-title">Áreas del contrato${chip('sDept')}</div><div class="card-sub">Son las de la institución y las comparten todos sus formularios y la base de funcionarios. Ej.: Facturación, Urgencias, Laboratorio, Talento Humano. Los cambios se guardan inmediatamente</div></div></div><div class="card-body" id="deptBox"></div></div>` : ''}
+          <div class="row" style="justify-content:flex-end">${show('sParam') ? '<button class="btn btn-ghost" data-action="defaults">Restaurar parámetros por defecto</button>' : ''}<button class="btn btn-primary btn-lg" data-action="save">${icon('check')} ${soloForm ? 'Guardar parámetros' : 'Guardar configuración'}</button></div>
         </div>
       </div>`;
     if (window.matchMedia('(max-width: 860px)').matches) { $('#settingsGrid').style.gridTemplateColumns = '1fr'; $('.settings-nav', view).hidden = true; }
@@ -8969,7 +9079,7 @@ const SettingsView = {
           if (!ok) return;
           const def = U.clone(DEFAULT_SETTINGS);
           // El cuestionario y la verificación al ingresar no son parámetros de cálculo: se conservan
-          if (form) Store.update('forms', form.id, { settings: { ...def, questionnaire: form.settings.questionnaire, access: Settings.merge(form.settings).access, requireArea: Settings.merge(form.settings).requireArea, areaFree: Settings.merge(form.settings).areaFree } });
+          if (form) Store.update('forms', form.id, { settings: { ...def, questionnaire: form.settings.questionnaire, access: Settings.merge(form.settings).access, requiredFields: Settings.merge(form.settings).requiredFields, requireArea: Settings.merge(form.settings).requireArea, areaFree: Settings.merge(form.settings).areaFree } });
           else { def.requiredFields = study.settings.requiredFields; def.access = Settings.merge(study.settings).access; study.settings = def; Store.update('studies', study.id, {}); }
           Store.save(); UI.toast('Parámetros restaurados'); this.render(view);
         });
@@ -9047,30 +9157,34 @@ const SettingsView = {
     const calcOf = x => JSON.stringify([x.hoursPerDay, x.daysPerMonth, x.weeksPerMonth, Calc.availableMinutes(x), x.underThreshold, x.overThreshold, x.frequencyFactors, x.timeBasis, x.includeEventual, x.alerts].map(norm));
     const nSent = form && form.status !== 'closed' ? Store.db.responses.filter(r => r.formId === form.id && r.status === 'submitted').length : 0;
     if (nSent && calcOf(params) !== calcOf(Settings.merge(form.settings)) && !(await UI.confirm(`Los nuevos parámetros cambian los resultados de ${U.plural(nSent, 'respuesta enviada', 'respuestas enviadas')} de «${U.esc(form.name)}». ¿Desea guardarlos?`, { title: 'Recalcular resultados', ok: 'Guardar y recalcular' }))) return;
-    delete params.requiredFields;
     delete params.access;
     // El ajuste de la firma es del contrato (no de los parámetros de cálculo del formulario)
     const signature = Signature.fit(st);
     delete params.signature;
-    const requiredFields = { ...st.settings.requiredFields };
+    // Los que acaba de marcar (van al formulario) y los que ya tenía el contrato (valores por defecto)
+    const reqForm = { ...Settings.merge(params).requiredFields };
+    const reqStudy = { ...Settings.merge(study.settings).requiredFields };
     // La verificación al ingresar se configura en el cuestionario de cada formulario y se conserva
     const access = Settings.merge(study.settings).access;
+    const soloForm = this.scope === 'formulario';
+    let tocaContrato = !soloForm;
     const prevResp = study.responsibleName;
-    ['institutionName', 'name', 'logoDataUrl', 'consentText', ...Responsible.FIELDS].forEach(k => { study[k] = typeof st[k] === 'string' ? st[k].trim() : st[k]; });
+    if (!soloForm) ['institutionName', 'name', 'logoDataUrl', 'consentText', ...Responsible.FIELDS].forEach(k => { study[k] = typeof st[k] === 'string' ? st[k].trim() : st[k]; });
     // El mismo responsable en otros contratos: se actualizan también sus datos y su firma
-    if (d.syncResp) Store.db.studies.filter(x => x.id !== study.id && [prevResp, study.responsibleName].some(n => U.normalize(n) && U.normalize(x.responsibleName) === U.normalize(n))).forEach(x => { Responsible.FIELDS.forEach(k => { x[k] = study[k]; }); x.updatedAt = U.now(); });
+    if (d.syncResp && !soloForm) Store.db.studies.filter(x => x.id !== study.id && [prevResp, study.responsibleName].some(n => U.normalize(n) && U.normalize(x.responsibleName) === U.normalize(n))).forEach(x => { Responsible.FIELDS.forEach(k => { x[k] = study[k]; }); x.updatedAt = U.now(); });
     if (form) {
       // Un formulario cerrado conserva sus parámetros: cambiarlos alteraría sus resultados
-      if (form.status !== 'closed') Store.update('forms', form.id, { settings: { ...Settings.merge(params), requiredFields: undefined, access: Settings.merge(form.settings).access, signature: undefined } });
-      if (d.alsoDefault) study.settings = { ...Settings.merge(params), requiredFields, access, signature };
-      else study.settings = { ...Settings.merge(study.settings), requiredFields, access, signature };
+      if (form.status !== 'closed') Store.update('forms', form.id, { settings: { ...Settings.merge(params), access: Settings.merge(form.settings).access, signature: undefined } });
+      // Los parámetros del formulario no se copian al contrato: aquí solo se guarda lo que es del contrato
+      if (!soloForm) study.settings = { ...Settings.merge(study.settings), requiredFields: reqStudy, access, signature };
     } else {
-      study.settings = { ...Settings.merge(params), requiredFields, access, signature };
+      study.settings = { ...Settings.merge(params), requiredFields: reqForm, access, signature };
+      tocaContrato = true;
     }
-    study.updatedAt = U.now();
+    if (tocaContrato) study.updatedAt = U.now();
     Store.save();
     App.refreshShell();
-    UI.toast(form && form.status === 'closed' ? 'Configuración guardada. Los parámetros del formulario cerrado no cambiaron.' : form ? `Configuración guardada. Los cálculos de «${form.name}» se actualizaron.` : 'Configuración guardada.');
+    UI.toast(form && form.status === 'closed' ? 'Guardado. Los parámetros del formulario cerrado no cambiaron.' : form ? `Guardado. Los cálculos de «${form.name}» se actualizaron.` : 'Configuración guardada.');
   },
   /** Carga una imagen de firma: se recorta al trazo y el fondo claro queda transparente. */
   pickSignature() {
@@ -9118,6 +9232,7 @@ const SettingsView = {
     inp.click();
   },
   renderDepts() {
+    if (!$('#deptBox')) return;   // la tarjeta de áreas no está en esta pantalla
     const deps = Domain.departments();
     const emps = Store.inStudy('employees');
     $('#deptBox').innerHTML = `<div class="row" style="margin-bottom:14px;flex-wrap:nowrap"><input class="input" id="newDept" placeholder="Nombre de la nueva área" aria-label="Nueva área"><button class="btn btn-primary" data-action="addDept">${icon('plus')} Agregar</button></div>
